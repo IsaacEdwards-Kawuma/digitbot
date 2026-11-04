@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Digit Bot – install</title>
+<style>
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; max-width: 640px; margin: 0 auto; padding: 16px; line-height: 1.5; color: #1a1a1a; background: #fafafa; }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; }
+  h2 { font-size: 1.1rem; margin-top: 28px; }
+  .card { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: 14px 16px; margin: 12px 0; }
+  textarea { width: 100%; box-sizing: border-box; height: 110px; font: 12px/1.4 monospace; padding: 8px; border-radius: 6px; border: 1px solid #bbb; }
+  button { font-size: 1rem; padding: 10px 18px; border-radius: 8px; border: 0; background: #2563eb; color: #fff; cursor: pointer; margin-top: 8px; }
+  #ok { color: #15803d; font-weight: 600; margin-left: 8px; }
+  a.drag { display: inline-block; padding: 10px 18px; background: #16a34a; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600; }
+  ol { padding-left: 20px; } li { margin: 4px 0; }
+  .warn { background: #fff7ed; border-color: #fdba74; }
+  small { color: #555; }
+</style>
+</head>
+<body>
+<h1>Digit Bot</h1>
+<small>Works on PC, Android and iPhone/iPad. Add the bookmark once; updates arrive automatically.</small>
+
+<div class="card">
+  <b>1. Copy the bookmark code</b>
+  <textarea id="code" readonly></textarea>
+  <button id="copy">Copy</button><span id="ok"></span>
+</div>
+
+<h2>2. Save it as a bookmark</h2>
+
+<div class="card">
+  <b>PC (Chrome / Edge / Firefox)</b><br>
+  Easiest: show the bookmarks bar (Ctrl+Shift+B) and <b>drag this green button onto it</b>:<br><br>
+  <a class="drag" id="drag" href="#">Digit Bot</a><br><br>
+  <small>If you're signed into Chrome on your PC and phone with the same Google account, the bookmark appears on the phone by itself (bookmark sync).</small>
+</div>
+
+<div class="card">
+  <b>Android (Chrome)</b>
+  <ol>
+    <li>Tap ⋮ → ☆ to bookmark this page, then tap <b>Edit</b>.</li>
+    <li>Name: <b>Digit Bot</b>. Delete the URL and <b>paste the copied code</b>. Save.</li>
+  </ol>
+</div>
+
+<div class="card">
+  <b>iPhone / iPad (Safari)</b>
+  <ol>
+    <li>Tap Share → <b>Add Bookmark</b> → Save.</li>
+    <li>Open Bookmarks → <b>Edit</b> → tap the new bookmark.</li>
+    <li>Name: <b>Digit Bot</b>. Replace the address with the <b>copied code</b>. Done.</li>
+  </ol>
+</div>
+
+<h2>3. Use it</h2>
+<div class="card">
+  <ol>
+    <li>Open <b>mmgpredictions.com</b> and log in.</li>
+    <li><b>PC:</b> click the Digit Bot bookmark.<br>
+        <b>Android:</b> tap the address bar, type <b>Digit Bot</b> and tap the bookmark in the suggestions (opening it from the bookmarks list doesn't work on Android).<br>
+        <b>iPhone:</b> open Bookmarks and tap Digit Bot.</li>
+    <li>The <b>Digit Bot</b> panel appears on the game page.</li>
+  </ol>
+</div>
+
+<div class="card warn">
+  <b>Be honest with yourself:</b> no bot can predict the next digit. Every option on this site loses about 1% per trade on average.
+  Practise on DEMO, use the stop-loss, and never trade money you need. REAL accounts are refused unless you tick “Allow REAL”.
+</div>
+
+<script>
+  var url = location.origin + location.pathname.replace(/[^\/]*$/, "") + "bot.js";
+  if (location.protocol === "file:") url = "https://isaacedwards-kawuma.github.io/digitbot/bot.js";
+  var code = "javascript:(function(){var s=document.createElement('script');s.src='" + url +
+    "?t='+Date.now();s.onerror=function(){alert('Digit Bot could not load - check your internet.')};document.body.appendChild(s)})()";
+  document.getElementById("code").value = code;
+  document.getElementById("drag").href = code;
+  document.getElementById("copy").onclick = function () {
+    var t = document.getElementById("code"); t.select(); t.setSelectionRange(0, 99999);
+    (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject()).catch(function () { document.execCommand("copy"); });
+    document.getElementById("ok").textContent = "Copied ✓";
+  };
+</script>
+</body>
+</html>
