@@ -1,12 +1,14 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.3.0
+// @version      2.4.0
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
 // @run-at       document-idle
 // @grant        none
+// @updateURL    https://isaacedwards-kawuma.github.io/digitbot/mmg-digit-bot.user.js
+// @downloadURL  https://isaacedwards-kawuma.github.io/digitbot/mmg-digit-bot.user.js
 // ==/UserScript==
 /*
   HOW IT WORKS
@@ -275,7 +277,9 @@
   #mdb .log{margin-top:6px;font:11px ui-monospace,monospace;max-height:110px;overflow:auto;background:#0f172a;color:#e2e8f0;border-radius:6px;padding:5px}
   #mdb .warn{color:#b91c1c;font-weight:600} #mdb .ok{color:#15803d;font-weight:600}
   #mdb .log .warn{color:#fca5a5} #mdb .log .ok{color:#86efac}
-  #mdb.min .bd,#mdb.min .hp{display:none!important} #mdb.min{width:auto}
+  #mdb.min .bd,#mdb.min .hp,#mdb.min #mdbHelp,#mdb.min #mdbX{display:none!important}
+  #mdb.min{width:auto;border-radius:999px} #mdb.min .hd{padding:7px 12px;border-radius:999px}
+  #mdb.min .hd b{flex:none} #mdb .hd #mdbBadge{font-size:12px;font-weight:600;white-space:nowrap}
   #mdb .tabs{display:flex;gap:6px;margin-bottom:8px}
   #mdb .tabs button{flex:1;padding:8px;border:1px solid #cbd5e1;background:#f1f5f9;border-radius:8px;font-size:14px;font-weight:600;color:#475569}
   #mdb .tabs button.on{background:#0b7c8c;border-color:#0b7c8c;color:#fff}
@@ -359,7 +363,11 @@
     <li><b>“This is a REAL account”</b>: switch the game to DEMO (or tick Allow REAL).</li>
     <li><b>“Can't find the digit circles / price”</b>: open the Manual Trader page, then press Start.</li>
     <li><b>“Wait until your open trades have finished”</b>: wait for the Open (N) trades to settle.</li>
-    <li>Panel gone? Tap the Digit Bot bookmark again. Drag it by the green bar; “–” makes it small.</li>
+    <li>Panel gone? Tap the Digit Bot bookmark again.</li>
+    <li><b>Floating bubble</b>: “–” shrinks the bot to a small bubble showing LIVE, trades and P/L.
+        Drag it anywhere; tap it to open. The place is remembered.</li>
+    <li>The screen stays on while the bot runs. If you switch to another app or tab, the phone pauses
+        the page, so the bot pauses too (and stops after 15 s without ticks). Keep the game on screen.</li>
    </ul></div></details>
    <details><summary>Example setups</summary><div><ul>
     <li><b>First test</b>: Differ, pick 7, stake 1, every tick, max trades 1, stop-loss 10, max stake 1, LIVE on.</li>
@@ -485,20 +493,40 @@
   $("tabAuto").onclick = () => { S.tab = "auto"; save(); showTab(); };
   $("tabMan").onclick = () => { S.tab = "manual"; save(); showTab(); };
   showTab();
-  $("mdbMin").onclick = () => box.classList.toggle("min");
+  const UI_KEY = "mmgDigitBot.ui.v1";
+  let UI = {}; try { UI = JSON.parse(localStorage.getItem(UI_KEY) || "{}"); } catch (e) {}
+  const saveUI = () => { try { localStorage.setItem(UI_KEY, JSON.stringify(UI)); } catch (e) {} };
+  function setMin(m) { box.classList.toggle("min", m); UI.min = m; saveUI(); if (m) box.classList.remove("help"); placeBox(); }
+  function placeBox() {   // keep the panel/bubble on screen (after rotate, resize, minimize)
+    if (UI.left == null) return;
+    const r = box.getBoundingClientRect();
+    box.style.left = Math.max(0, Math.min(innerWidth - Math.min(r.width, innerWidth), UI.left)) + "px";
+    box.style.top = Math.max(0, Math.min(innerHeight - Math.min(r.height, innerHeight), UI.top)) + "px";
+    box.style.bottom = "auto";
+  }
+  $("mdbMin").onclick = () => setMin(!box.classList.contains("min"));
+  if (UI.min) box.classList.add("min");
+  placeBox();
+  addEventListener("resize", placeBox);
   $("mdbHelp").onclick = () => { box.classList.remove("min"); box.classList.toggle("help"); $("mdbHelpBox").scrollTop = 0; };
   $("mdbBack").onclick = () => box.classList.remove("help");
   $("mdbX").onclick = () => { stop("panel closed"); box.style.display = "none"; };
 
   // drag the panel by its header (mouse + touch)
   (() => {
-    const hd = box.querySelector(".hd"); let sx, sy, ox, oy, drag = false;
-    hd.addEventListener("pointerdown", e => { if (e.target.tagName === "BUTTON") return; drag = true; sx = e.clientX; sy = e.clientY;
+    const hd = box.querySelector(".hd"); let sx, sy, ox, oy, drag = false, moved = false;
+    hd.addEventListener("pointerdown", e => { if (e.target.tagName === "BUTTON") return; drag = true; moved = false; sx = e.clientX; sy = e.clientY;
       const r = box.getBoundingClientRect(); ox = r.left; oy = r.top; hd.setPointerCapture(e.pointerId); });
     hd.addEventListener("pointermove", e => { if (!drag) return;
+      if (Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy) > 6) moved = true; if (!moved) return;
       box.style.left = Math.max(0, Math.min(innerWidth - 60, ox + e.clientX - sx)) + "px";
       box.style.top = Math.max(0, Math.min(innerHeight - 40, oy + e.clientY - sy)) + "px"; box.style.bottom = "auto"; });
-    hd.addEventListener("pointerup", () => { drag = false; });
+    hd.addEventListener("pointerup", () => {
+      if (!drag) return; drag = false;
+      if (moved) { const r = box.getBoundingClientRect(); UI.left = r.left; UI.top = r.top; saveUI(); }
+      else if (box.classList.contains("min")) setMin(false);   // tap on the bubble = open
+    });
+    hd.addEventListener("pointercancel", () => { drag = false; });
   })();
 
   const logLines = [];
@@ -548,12 +576,26 @@
                   `Stop-loss $${S.stopLoss}  Take-profit $${S.takeProfit}\n${odds}\n\nStart?`;
       if (!confirm(msg)) return;
     }
+    keepAwake(true);
     running = true; finishing = null; t0 = Date.now(); trades = 0; run = 0; startBal = balance(); lastTickAt = Date.now();
     $("mdbStart").disabled = true;
     log(`START ${S.live ? "LIVE" : "WATCH-ONLY"}${strategyById(S.strategy) ? " [" + strategyById(S.strategy).name + "]" : ""}: ${describe()} on ${triggerText()} x${S.inRow}`, "ok");
   }
+  let wake = null;
+  async function keepAwake(on) {
+    try {
+      if (on && !wake && navigator.wakeLock && document.visibilityState === "visible") {
+        wake = await navigator.wakeLock.request("screen"); wake.addEventListener("release", () => { wake = null; });
+      } else if (!on && wake) { await wake.release(); wake = null; }
+    } catch (e) {}
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") { if (running) keepAwake(true); }
+    else if (running) log("page hidden - the phone pauses the bot until you come back (it stops if ticks are missing 15 s)", "warn");
+  });
   function stop(why) {
     if (!running) return;
+    keepAwake(false);
     running = false; finishing = null; $("mdbStart").disabled = false;
     const bal = balance(), pl = bal != null && startBal != null ? bal - startBal : null;
     const note = settled() ? "" : " (trades still open - see the final result in the game)";
@@ -635,7 +677,11 @@
   function loop() {
     const demo = isDemo(), bal = balance(), done = settled();
     $("mdbAcc").innerHTML = demo ? '<span class="ok">DEMO</span>' : '<span class="warn">REAL</span>';
-    $("mdbBadge").textContent = running ? (finishing ? "● finishing" : S.live ? "● LIVE" : "● watching") : "";
+    { const plb = running && bal != null && startBal != null ? bal - startBal : null;
+      $("mdbBadge").textContent = running
+        ? `${finishing ? "● finishing" : S.live ? "● LIVE" : "● watching"} ${trades}/${S.maxTrades}` +
+          (plb != null ? ` ${plb >= 0 ? "+" : "-"}$${Math.abs(plb).toFixed(2)}` : "")
+        : (box.classList.contains("min") ? "stopped" : ""); }
     $("mdbBal").textContent = "balance: " + (bal == null ? "?" : "$" + bal.toFixed(2));
     const mode = currentMode();
     $("mdbSym").textContent = symbolName() + (mode ? " · " + MODE_NAME[mode] : "");
