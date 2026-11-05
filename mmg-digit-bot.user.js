@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.11.1
+// @version      2.12.0
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -313,7 +313,12 @@
   #mdb .rbl select,#mdb .rbl input{padding:3px 4px;font-size:12.5px;max-width:150px} #mdb .rbl input{width:58px}
   #mdb .rbx{margin-left:auto} #mdb .rbx button{padding:1px 6px;font-size:11px;border:1px solid #cbd5e1;background:#fff;border-radius:5px}
   #mdb .rbg{display:grid;grid-template-columns:1fr 1fr;gap:5px} #mdb .rbg input,#mdb .rbg select{width:100%}
-  #mdb .rbrow{display:flex;gap:5px;margin:6px 0} #mdb .rbrow button{flex:1}
+  #mdb .rbrow{display:flex;gap:5px;margin:6px 0}
+  #mdb .rbt div{border:1px solid #e2e8f0;border-radius:8px;padding:5px 7px;margin:4px 0;cursor:pointer;background:#fff}
+  #mdb .rbt div:hover{border-color:#0b7c8c} #mdb .rbt b{display:block;font-size:12.5px} #mdb .rbt span{font-size:11.5px;color:#0b7c8c}
+  #mdb .rbh{display:flex;justify-content:space-between;font-size:11.5px;color:#475569;margin:3px 0} #mdb .rblive{color:#15803d;font-weight:700} #mdb .rbstop{color:#64748b;font-weight:700}
+  #mdb .rbd{display:grid;grid-template-columns:1fr 1fr;gap:4px} #mdb .rbd div{border:1px solid #e2e8f0;border-radius:7px;padding:4px 6px;background:#fff}
+  #mdb .rbd span{display:block;font-size:10.5px;color:#64748b;text-transform:uppercase} #mdb .rbd b{font-size:15px} #mdb .rbrow button{flex:1}
   #mdb .tabs button.on{background:#0b7c8c;border-color:#0b7c8c;color:#fff}
   #mdb .once{grid-column:1/3;padding:9px;border:0;border-radius:8px;background:#2563eb;color:#fff;font-size:14px;font-weight:600}
   #mdb .once:disabled{background:#94a3b8}
@@ -1128,11 +1133,25 @@
   const CONDS = { always: "always (otherwise)", first: "first round", won: "last trade won", lost: "last trade lost",
                   lossRow: "losses in a row ≥", winRow: "wins in a row ≥", dEven: "last digit is even", dOdd: "last digit is odd",
                   dEq: "last digit =", dGt: "last digit >", dLt: "last digit <", pctHi: "digit # share of last 60 ≥ %", pctLo: "digit # share of last 60 ≤ %",
-                  plUp: "session profit ≥ $", plDown: "session loss ≥ $" };
+                  plUp: "session profit ≥ $", plDown: "session loss ≥ $",
+                  hotHi: "hottest digit of last 60 is 5–9", hotLo: "hottest digit of last 60 is 0–4" };
   const NEED_N = { lossRow: 1, winRow: 1, dEq: 1, dGt: 1, dLt: 1, pctHi: 2, pctLo: 2, plUp: 1, plDown: 1 };
-  const SACT = { keep: "keep stake", reset: "reset stake to start", mult: "multiply stake by", add: "add $", sub: "take away $", set: "set stake to $" };
+  const SACT = { keep: "keep stake", reset: "reset stake to start", mult: "multiply stake by", add: "add $", sub: "take away $", set: "set stake to $",
+                  fibUp: "Fibonacci: one step up", fibBack: "Fibonacci: two steps back" };
   const BUYS = { even: "Even", odd: "Odd", over: "Over", under: "Under", differ: "Differs", match: "Matches", rise: "Rise", fall: "Fall", skip: "skip this round" };
+  const TDESC = {
+    "Martingale (Even)": "Double the stake after every loss, reset after a win. Wins most sessions, but a losing run costs a lot - high risk.",
+    "Paroli (Even)": "Reverse Martingale: double after a win (up to 3 in a row), reset after a loss. Small losses, rare bigger wins.",
+    "D'Alembert (Over 3)": "+$1 after a loss, −$1 after a win. Gentler than Martingale.",
+    "Fibonacci (Even)": "Stake follows 1,1,2,3,5,8… one step up after a loss, two steps back after a win.",
+    "Differs sniper (0)": "Flat stake on Differs 0: about 90% win chance for a small payout each round. Steady, lower risk per trade.",
+    "Digit trend (Over/Under)": "Reads the hottest digit of the last 60: Over 4 when it's high, Under 5 when it's low. Flat stake. (Hot digits don't predict - see the tests.)",
+    "Odd after an even (flat)": "Only trades after an even digit, buys Odd. Flat stake.",
+    "Cool-down after 3 losses": "Even with a flat stake, but sits out one round after 3 losses in a row.",
+  };
   const TEMPLATES = {
+    "Fibonacci (Even)": { start: 1, tp: 20, sl: 50, maxTrades: 50, cap: 21, rules: [{ c: "lost", s: "fibUp", b: "even" }, { c: "won", s: "fibBack", b: "even" }, { c: "always", s: "reset", b: "even" }] },
+    "Digit trend (Over/Under)": { start: 1, tp: 20, sl: 50, maxTrades: 50, cap: 1, rules: [{ c: "hotHi", s: "reset", b: "over", pick: 4 }, { c: "always", s: "reset", b: "under", pick: 5 }] },
     "Martingale (Even)": { start: 1, tp: 20, sl: 50, maxTrades: 50, cap: 16, rules: [{ c: "lost", s: "mult", v: 2, b: "even" }, { c: "always", s: "reset", b: "even" }] },
     "Paroli (Even)": { start: 1, tp: 20, sl: 50, maxTrades: 50, cap: 8, rules: [{ c: "winRow", n: 3, s: "reset", b: "even" }, { c: "won", s: "mult", v: 2, b: "even" }, { c: "always", s: "reset", b: "even" }] },
     "D'Alembert (Over 3)": { start: 1, tp: 20, sl: 50, maxTrades: 50, cap: 10, rules: [{ c: "lost", s: "add", v: 1, b: "over", pick: 3 }, { c: "won", s: "sub", v: 1, b: "over", pick: 3 }, { c: "always", s: "keep", b: "over", pick: 3 }] },
@@ -1176,6 +1195,8 @@
       <div class="odds" id="rbStat">${RB.on ? "" : "Stopped."}</div>
       <button class="once" id="rbTest">🧪 Test it: 1000 practice sessions (no money)</button><div class="odds" id="rbTestOut" style="display:none"></div>
       <div class="rbrow"><button class="clr" id="rbSave">💾 Save</button><button class="clr" id="rbExport">Export</button><button class="clr" id="rbImport">Import</button><button class="clr" id="rbDel">Delete saved</button></div>
+      <div class="sec">Templates</div><div class="rbt">${Object.keys(TEMPLATES).map(k => `<div data-tpl="${k}"><b>${k}</b><span>${TDESC[k] || ""}</span></div>`).join("")}</div>
+      <div class="sec">Saved strategies</div><div class="rbt">${Object.keys(BS.saved).map(k => `<div data-tpl="saved:${k}"><b>💾 ${k}</b><span>${BS.saved[k].rules.length} cards · start $${BS.saved[k].start} · TP $${BS.saved[k].tp} · SL $${BS.saved[k].sl}</span></div>`).join("") || `<div class="mut" style="cursor:default">No saved strategies yet.</div>`}</div>
       <div class="tip">Honest note: stake rules change how wins and losses are spread, never the odds. Martingale-type rules win most sessions and lose more overall. Test first, demo first.</div></div>`;
     if (RB.on) rbStatus();
   }
@@ -1188,11 +1209,24 @@
     saveB();
   }
   pB.addEventListener("change", e => {
+    if (e.target.id === "rb_wallet") {
+      if (RB.on) { log("Stop the rounds first.", "warn"); e.target.value = BS.cur.wallet || "demo"; return; }
+      if (e.target.value === "real") {
+        const t = prompt("REAL MONEY: the rounds will trade on your real MMG wallet.\nThe bot cannot predict digits; every template loses a little on average.\n\nType I UNDERSTAND to allow it:");
+        if ((t || "").trim().toUpperCase() !== "I UNDERSTAND") { e.target.value = "demo"; log("Wallet stays on demo only.", "warn"); }
+        else log("Wallet: real allowed for Rounds (it still asks before each Run).", "warn");
+      } else log("Wallet: demo only - Rounds trade only when MMG shows DEMO.", "ok");
+      rbRead(); rbStatus(); return;
+    }
     if (e.target.id === "rb_tpl") { const v = e.target.value; if (!v) return; if (RB.on) { log("Stop the rounds first.", "warn"); return; }
       BS.cur = JSON.parse(JSON.stringify(v.startsWith("saved:") ? BS.saved[v.slice(6)] : TEMPLATES[v])); BS.name = v.replace(/^saved:/, ""); saveB(); rbRender(); log(`rounds: loaded ${BS.name}`, "ok"); return; }
     rbRead(); if (e.target.dataset.f) rbRender();                 // a select changed what the card needs
   });
   pB.addEventListener("click", e => {
+    const tp = e.target.closest("[data-tpl]");
+    if (tp) { if (RB.on) return log("Stop the rounds first.", "warn"); const v = tp.dataset.tpl;
+      BS.cur = JSON.parse(JSON.stringify(v.startsWith("saved:") ? BS.saved[v.slice(6)] : TEMPLATES[v])); BS.name = v.replace(/^saved:/, ""); saveB(); rbRender();
+      log(`rounds: loaded ${BS.name}`, "ok"); pB.scrollIntoView({ block: "start" }); return; }
     const a = e.target.dataset.a, card = e.target.closest(".rbc"), id = e.target.id;
     if (card && (a === "rm" || a === "up")) { if (RB.on) return log("Stop the rounds first.", "warn"); rbRead(); const i = +card.dataset.i, R = BS.cur.rules;
       if (a === "rm" && R.length > 1) R.splice(i, 1); if (a === "up" && i > 0) [R[i - 1], R[i]] = [R[i], R[i - 1]]; saveB(); rbRender(); return; }
@@ -1216,18 +1250,22 @@
       case "dEq": return d === +r.n; case "dGt": return d > +r.n; case "dLt": return d < +r.n;
       case "pctHi": case "pctLo": { if (last60.length < 30) return false; const pc = 100 * last60.filter(x => x === +r.d).length / last60.length; return r.c === "pctHi" ? pc >= +r.n : pc <= +r.n; }
       case "plUp": return st.pl >= +r.n; case "plDown": return -st.pl >= +r.n;
+      case "hotHi": case "hotLo": { if (last60.length < 30) return r.c === "hotLo"; const cn = Array(10).fill(0); last60.forEach(x => cn[x]++);
+        let hot = 0; for (let k = 1; k < 10; k++) if (cn[k] >= cn[hot]) hot = k; return r.c === "hotHi" ? hot >= 5 : hot < 5; }
     }
     return false;
   }
   function rbDecide(c, st, last60, d) {          // -> { rule, stake, buy, pick } ; stake already capped
     const r = c.rules.find(x => rbCond(x, st, last60, d)); if (!r) return null;
-    let k = st.stake;
-    k = r.s === "reset" ? c.start : r.s === "mult" ? k * (+r.v || 1) : r.s === "add" ? k + (+r.v || 0) : r.s === "sub" ? k - (+r.v || 0) : r.s === "set" ? +r.v : k;
+    let k = st.stake, fib = st.fib || 0;
+    if (r.s === "fibUp") fib = Math.min(FIB.length - 1, fib + 1); else if (r.s === "fibBack") fib = Math.max(0, fib - 2); else if (r.s === "reset") fib = 0;
+    k = r.s === "reset" ? c.start : r.s === "mult" ? k * (+r.v || 1) : r.s === "add" ? k + (+r.v || 0) : r.s === "sub" ? k - (+r.v || 0) : r.s === "set" ? +r.v
+      : r.s === "fibUp" || r.s === "fibBack" ? c.start * FIB[fib] : k;
     k = Math.round(Math.max(c.start, k) * 100) / 100;
     let note = "";
-    if (k > c.cap) { k = c.start; note = `above the $${c.cap} cap - back to $${c.start}`; }
+    if (k > c.cap) { k = c.start; fib = 0; note = `above the $${c.cap} cap - back to $${c.start}`; }
     if (c.sl > 0 && k > c.sl + st.pl) { k = Math.round((c.sl + st.pl) * 100) / 100; note = `cut to $${k} so the stop-loss can't be passed`; }
-    return { r, stake: k, buy: r.b, pick: r.pick ?? 5, note };
+    return { r, stake: k, buy: r.b, pick: r.pick ?? 5, note, fib };
   }
   const estPay = (b, pick) => { const p = { even: 0.5, odd: 0.5, rise: 0.5, fall: 0.5, differ: 0.9, match: 0.1, over: (9 - pick) / 10, under: pick / 10 }[b];
     return { p, pay: b === "even" || b === "odd" ? 0.98 : b === "differ" ? 0.10 : Math.max(0.01, 0.95 / p - 1) }; };
@@ -1245,8 +1283,9 @@
         if (c.tp > 0 && st.pl >= c.tp) { tpH++; break; } if (c.sl > 0 && -st.pl >= c.sl) { slH++; break; }
         const d0 = hist[hist.length - 1], dec = rbDecide(c, st, hist.slice(-60), d0);
         const d = next(); hist.push(d); if (hist.length > 80) hist.shift();
-        if (!dec || dec.buy === "skip" || !(dec.stake >= 0.35)) { if (!dec || dec.stake < 0.35) break; continue; }
-        st.stake = dec.stake; const { pay } = estPay(dec.buy, dec.pick), won = winsOn(dec.buy, dec.pick, d, Math.random() < 0.5);
+        if (!dec || dec.buy === "skip" || !(dec.stake >= 0.35)) { if (!dec || dec.stake < 0.35) break;
+          if (dec.r.c === "lossRow" || dec.r.c === "winRow") { st.lossRow = 0; st.winRow = 0; } continue; }
+        st.stake = dec.stake; st.fib = dec.fib; const { pay } = estPay(dec.buy, dec.pick), won = winsOn(dec.buy, dec.pick, d, Math.random() < 0.5);
         st.pl += won ? st.stake * pay : -st.stake; staked += st.stake; big = Math.max(big, st.stake); st.n++; nTr++;
         st.last = won ? "win" : "loss"; st.lossRow = won ? 0 : st.lossRow + 1; st.winRow = won ? st.winRow + 1 : 0;
       }
@@ -1266,23 +1305,31 @@
   function rbStart() {
     if (RB.on) return; if (running || busy) return log("Stop the main bot first (one bot at a time).", "warn");
     const c = BS.cur, demo = isDemo();
-    if (!demo && (c.wallet !== "real" || !S.allowReal)) return log(noDemoMsg() + " (For real money in Rounds also set Wallet to 'real allowed'.)", "warn");
+    if (!demo && c.wallet !== "real") return log("Your MMG wallet is not on DEMO (I can't see the DEMO badge). Switch the wallet at the top of MMG to DEMO and open the Manual Trader page - or choose Wallet: real allowed.", "warn");
     if (!circleRow() || !priceText()) return log("Can't find the game. Open the Manual Trader page.", "warn");
     if (openTrades()) return log("Wait until your open trades have finished.", "warn");
     { const why = dayBlock(0); if (why) return log(why, "warn"); }
     if (!demo && !confirm(`⚠ REAL MONEY\nRun "${BS.name}"?\nStart $${c.start}, cap $${c.cap}, stop-loss $${c.sl}, take-profit $${c.tp}, max ${c.maxTrades} trades.`)) return;
     rbSaved = { button: S.button, pick: S.pick, stakeSet: S.stakeSet, maxStake: S.maxStake };
-    Object.assign(RB, { on: true, t0: Date.now(), st: { stake: c.start, last: null, lossRow: 0, winRow: 0, pl: 0, n: 0 }, seen: null });
+    Object.assign(RB, { on: true, t0: Date.now(), st: { stake: c.start, last: null, lossRow: 0, winRow: 0, pl: 0, n: 0, fib: 0 }, seen: null });
     S.maxStake = Math.max(S.maxStake, c.cap); keepAwake(true); audioUnlock();
     log(`🧩 ROUNDS ON: "${BS.name}" - start $${c.start}, cap $${c.cap}, TP $${c.tp}, SL $${c.sl}, max ${c.maxTrades}${demo ? " (DEMO)" : " (REAL)"}`, "ok"); rbStatus();
   }
   function rbStop(why) {
-    if (!RB.on) return; RB.on = false;
+    if (!RB.on) return; RB.on = false; RB.why = why;
     if (rbSaved) { Object.assign(S, rbSaved); save(); fillForm(); refreshForm(); }
     const st = RB.st; log(`🧩 ROUNDS OFF: ${why} - ${st.n} trades, session ${st.pl >= 0 ? "+" : ""}$${st.pl.toFixed(2)}`, st.pl >= 0 ? "ok" : "warn");
     alertUser(st.pl >= 0); rbStatus(); if (!running) keepAwake(false);
   }
   function rbStatus() { const st = RB.st || {}; const el = $("rbStat"); if (!el) return;
+    if (RB.st) {
+      const bl = balance(), box = (l, v, c) => `<div><span>${l}</span><b class="${c || ""}">${v}</b></div>`;
+      el.innerHTML = `<div class="rbh"><span class="${RB.on ? "rblive" : "rbstop"}">● ${RB.on ? "LIVE" : "STOPPED"}</span><span>${isDemo() ? "DEMO WALLET" : "REAL WALLET"}</span></div>
+        <div class="rbd">${box("Total P&L", (st.pl >= 0 ? "+$" : "-$") + Math.abs(st.pl).toFixed(2), st.pl >= 0 ? "ok" : "warn")}${box("Trades", st.n + "/" + BS.cur.maxTrades)}
+        ${box("Next stake", "$" + (+(st.next ?? st.stake)).toFixed(2))}${box("Balance", bl != null ? "$" + bl.toFixed(2) : "–")}</div>
+        <div class="rbh"><span>Last: <b class="${st.last === "win" ? "ok" : st.last === "loss" ? "warn" : ""}">${st.last === "win" ? "WON" : st.last === "loss" ? "LOST" : "–"}</b></span><span>${RB.on ? BS.name : (RB.why || "")}</span></div>`;
+      return;
+    }
     el.innerHTML = RB.on ? `<b class="ok">RUNNING</b> ${BS.name} · trades ${st.n}/${BS.cur.maxTrades} · session <b class="${st.pl >= 0 ? "ok" : "warn"}">${st.pl >= 0 ? "+" : ""}$${(st.pl || 0).toFixed(2)}</b> · next stake $${(st.stake || 0).toFixed(2)} · last ${st.last || "–"}`
       : RB.st ? `Stopped. Last session: ${RB.st.n} trades, ${RB.st.pl >= 0 ? "+" : ""}$${RB.st.pl.toFixed(2)}.` : "Stopped."; }
   function rbTick(d) {
@@ -1292,18 +1339,26 @@
     const mine = H.filter(x => x.t >= RB.t0 && String(x.strat).startsWith("🧩") && (x.res === "win" || x.res === "loss"));
     const last = mine[mine.length - 1];
     if (last && last.t !== RB.seen) { RB.seen = last.t; st.last = last.res; st.pl = Math.round(mine.reduce((a, x) => a + (x.profit || 0), 0) * 100) / 100;
-      st.lossRow = last.res === "loss" ? st.lossRow + 1 : 0; st.winRow = last.res === "win" ? st.winRow + 1 : 0; rbStatus(); }
+      st.lossRow = last.res === "loss" ? st.lossRow + 1 : 0; st.winRow = last.res === "win" ? st.winRow + 1 : 0;
+      const bl = balance(), pf = last.profit || 0;
+      log(`🧩 #${mine.length} ${last.bet} $${(+last.stake).toFixed(2)} → ${last.res === "win" ? "WON" : "LOST"} ${pf >= 0 ? "+" : "-"}$${Math.abs(pf).toFixed(2)}` +
+          `${bl != null ? " · bal $" + bl.toFixed(2) : ""} · session ${st.pl >= 0 ? "+" : "-"}$${Math.abs(st.pl).toFixed(2)}`, last.res === "win" ? "ok" : "warn");
+      const nx = rbDecide(c, st, TK.slice(-60).map(x => x[1]), d); st.next = nx && nx.buy !== "skip" ? nx.stake : null;
+      rbStatus(); }
     if (c.tp > 0 && st.pl >= c.tp) return rbStop(`take-profit reached (+$${st.pl.toFixed(2)})`);
     if (c.sl > 0 && -st.pl >= c.sl) return rbStop(`stop-loss reached ($${st.pl.toFixed(2)})`);
     if (st.n >= c.maxTrades) return rbStop(`max ${c.maxTrades} trades done`);
-    if (!isDemo() && (c.wallet !== "real" || !S.allowReal)) return rbStop("account is not DEMO");
+    if (!isDemo() && c.wallet !== "real") return rbStop("the MMG wallet is not DEMO any more (Wallet is set to demo only)");
     const last60 = TK.slice(-61, -1).map(x => x[1]), dec = rbDecide(c, st, last60, d);
     if (!dec) return rbStop("no rule card matched - add an 'always' card at the end");
     if (dec.stake < 0.35) return rbStop("no room left before the stop-loss");
-    if (dec.buy === "skip") return;
+    if (dec.buy === "skip") {
+      if (dec.r.c === "lossRow" || dec.r.c === "winRow") { log(`🧩 sitting out one round (${CONDS[dec.r.c]} ${dec.r.n})`); st.lossRow = 0; st.winRow = 0; }
+      return;
+    }
     if (dec.note) log(`🧩 stake ${dec.note}`, "warn");
     { const why = dayBlock(dec.stake); if (why) return rbStop(why); }
-    Object.assign(S, { button: dec.buy, pick: dec.pick, stakeSet: dec.stake }); st.stake = dec.stake;
+    Object.assign(S, { button: dec.buy, pick: dec.pick, stakeSet: dec.stake }); st.stake = dec.stake; st.fib = dec.fib;
     busy = true;
     (async () => {
       try {
