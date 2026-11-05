@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.12.0
+// @version      2.13.0
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -1161,6 +1161,34 @@
   };
   let BS = { cur: JSON.parse(JSON.stringify(TEMPLATES["Martingale (Even)"])), name: "Martingale (Even)", saved: {} };
   try { Object.assign(BS, JSON.parse(localStorage.getItem(BKEY) || "{}")); } catch (e) {}
+  // Ready-made lower-risk strategies: 6 cards each, small capped stakes, cool-downs, tight limits. They appear under
+  // "Saved strategies" once (if you delete one it stays deleted). Lower risk = smaller swings, NOT a winning edge.
+  const PRESETS = {
+    "🛡️ Steady Differs": { start: 1, cap: 1, tp: 3, sl: 10, maxTrades: 40, wallet: "demo", rules: [
+      { c: "lossRow", n: 2, s: "reset", b: "skip" },                 // 2 losses in a row: sit out one round
+      { c: "lost", s: "reset", b: "differ", pick: 5 },               // after a loss: Differs 5
+      { c: "dEq", n: 3, s: "keep", b: "differ", pick: 4 },           // last digit 3: Differs 4
+      { c: "dEven", s: "keep", b: "differ", pick: 1 },               // last digit even: Differs 1
+      { c: "dOdd", s: "keep", b: "differ", pick: 0 },                // last digit odd: Differs 0
+      { c: "always", s: "reset", b: "differ", pick: 0 } ] },
+    "⚖️ Calm Even/Odd switch": { start: 1, cap: 1, tp: 6, sl: 10, maxTrades: 40, wallet: "demo", rules: [
+      { c: "lossRow", n: 3, s: "reset", b: "skip" },                 // 3 losses in a row: sit out one round
+      { c: "winRow", n: 3, s: "reset", b: "skip" },                  // 3 wins in a row: sit out one round
+      { c: "plUp", n: 4, s: "set", v: 0.5, b: "even" },              // $4 up: smaller $0.50 stakes to protect it
+      { c: "dEven", s: "reset", b: "odd" },                          // last digit even: buy Odd
+      { c: "dOdd", s: "reset", b: "even" },                          // last digit odd: buy Even
+      { c: "always", s: "reset", b: "even" } ] },
+    "🌱 Gentle mix (Even + Differs)": { start: 1, cap: 2.5, tp: 8, sl: 12, maxTrades: 40, wallet: "demo", rules: [
+      { c: "lossRow", n: 3, s: "reset", b: "differ", pick: 0 },      // 3 losses: back to $1 on low-risk Differs 0
+      { c: "plUp", n: 5, s: "reset", b: "differ", pick: 0 },         // $5 up: calm down on Differs 0
+      { c: "first", s: "reset", b: "even" },                         // first round: $1 Even
+      { c: "lost", s: "add", v: 0.5, b: "even" },                    // after a loss: +$0.50 (max $2.50)
+      { c: "won", s: "sub", v: 0.5, b: "even" },                     // after a win: −$0.50 (min $1)
+      { c: "always", s: "keep", b: "even" } ] },
+  };
+  BS.presetsAdded = BS.presetsAdded || [];
+  for (const [k, v] of Object.entries(PRESETS)) if (!BS.presetsAdded.includes(k)) { if (!BS.saved[k]) BS.saved[k] = JSON.parse(JSON.stringify(v)); BS.presetsAdded.push(k); }
+  try { localStorage.setItem(BKEY, JSON.stringify(BS)); } catch (e) {}
   const saveB = () => { try { localStorage.setItem(BKEY, JSON.stringify(BS)); } catch (e) {} };
   const RB = { on: false };
   const optS = (o, v) => Object.entries(o).map(([k, t]) => `<option value="${k}" ${String(k) === String(v) ? "selected" : ""}>${t}</option>`).join("");
@@ -1235,7 +1263,9 @@
     if (id === "rbStopB") rbStop("stopped by you");
     if (id === "rbTest") { rbRead(); rbTestShow(); }
     if (id === "rbSave") { rbRead(); BS.saved[BS.name] = JSON.parse(JSON.stringify(BS.cur)); saveB(); rbRender(); log(`rounds: saved "${BS.name}"`, "ok"); }
-    if (id === "rbDel") { if (BS.saved[BS.name] && confirm(`Delete saved "${BS.name}"?`)) { delete BS.saved[BS.name]; saveB(); rbRender(); } }
+    if (id === "rbDel") { const nm = ($("rb_name").value || "").trim();          // delete exactly what you see
+      if (!BS.saved[nm]) return log(`"${nm}" is not a saved strategy.`, "warn");
+      if (confirm(`Delete saved "${nm}"?`)) { delete BS.saved[nm]; BS.name = nm; saveB(); rbRender(); log(`rounds: deleted "${nm}"`, "ok"); } }
     if (id === "rbExport") { rbRead(); const j = JSON.stringify({ name: BS.name, ...BS.cur }); try { navigator.clipboard.writeText(j); } catch (x) {} prompt("Copied. Your strategy as text (share or back it up):", j); }
     if (id === "rbImport") { const t = prompt("Paste a strategy you exported:"); if (!t) return; try { const o = JSON.parse(t); if (!o.rules || !o.rules.length) throw 0;
       BS.name = o.name || "Imported"; delete o.name; BS.cur = o; saveB(); rbRender(); log(`rounds: imported ${BS.name}`, "ok"); } catch (x) { log("That text is not a strategy export.", "warn"); } }
@@ -1261,7 +1291,7 @@
     if (r.s === "fibUp") fib = Math.min(FIB.length - 1, fib + 1); else if (r.s === "fibBack") fib = Math.max(0, fib - 2); else if (r.s === "reset") fib = 0;
     k = r.s === "reset" ? c.start : r.s === "mult" ? k * (+r.v || 1) : r.s === "add" ? k + (+r.v || 0) : r.s === "sub" ? k - (+r.v || 0) : r.s === "set" ? +r.v
       : r.s === "fibUp" || r.s === "fibBack" ? c.start * FIB[fib] : k;
-    k = Math.round(Math.max(c.start, k) * 100) / 100;
+    k = Math.round(Math.max(r.s === "set" ? 0.35 : c.start, k) * 100) / 100;
     let note = "";
     if (k > c.cap) { k = c.start; fib = 0; note = `above the $${c.cap} cap - back to $${c.start}`; }
     if (c.sl > 0 && k > c.sl + st.pl) { k = Math.round((c.sl + st.pl) * 100) / 100; note = `cut to $${k} so the stop-loss can't be passed`; }
@@ -1318,7 +1348,7 @@
   function rbStop(why) {
     if (!RB.on) return; RB.on = false; RB.why = why;
     if (rbSaved) { Object.assign(S, rbSaved); save(); fillForm(); refreshForm(); }
-    const st = RB.st; log(`🧩 ROUNDS OFF: ${why} - ${st.n} trades, session ${st.pl >= 0 ? "+" : ""}$${st.pl.toFixed(2)}`, st.pl >= 0 ? "ok" : "warn");
+    const st = RB.st; log(`🧩 ROUNDS OFF: ${why} - ${st.n} trades, session ${st.pl >= 0 ? "+" : "-"}$${Math.abs(st.pl).toFixed(2)}`, st.pl >= 0 ? "ok" : "warn");
     alertUser(st.pl >= 0); rbStatus(); if (!running) keepAwake(false);
   }
   function rbStatus() { const st = RB.st || {}; const el = $("rbStat"); if (!el) return;
