@@ -64,6 +64,8 @@
     <label>Market<select id="sym"></select></label>
     <label>Timeframe<select id="tf"><option value="15m">M15 (15 min)</option><option value="1h" selected>H1 (1 hour)</option>
       <option value="4h">H4 (4 hours)</option><option value="1d">D1 (1 day)</option></select></label>
+    <label id="fxWrap" class="hide">Prices from<select id="fxsrc"><option value="web">Web (Binance, follows real rates)</option>
+      <option value="mt5">MetaTrader 5 (your broker, via the PC bot)</option></select></label>
     <label id="mtWrap">Type<select id="mtype"><option value="spot">Spot</option><option value="futures">Futures (perpetual)</option></select></label>
     <button id="reload">↻ Refresh</button>
   </div>
@@ -149,9 +151,10 @@
     <div class="grid">
       <div class="box"><h3>⚙️ Account and limits</h3>
         <div class="row">
-          <label>Market<select id="lvMarket"><option value="futures">Futures (long + short)</option><option value="spot">Spot (buy only)</option></select></label>
-          <label>Money<select id="lvNet"><option value="1">TESTNET (practice)</option><option value="0">LIVE (real money)</option></select></label>
-          <label>Leverage (max 3x)<select id="lvLev"><option>1</option><option>2</option><option selected>3</option></select></label>
+          <label>Market<select id="lvMarket"><option value="futures">Crypto – Binance Futures (long + short)</option><option value="spot">Crypto – Binance Spot (buy only)</option>
+            <option value="mt5">Forex – MetaTrader 5 (DEMO account only)</option></select></label>
+          <label class="bnOnly">Money<select id="lvNet"><option value="1">TESTNET (practice)</option><option value="0">LIVE (real money)</option></select></label>
+          <label class="bnOnly">Leverage (max 3x)<select id="lvLev"><option>1</option><option>2</option><option selected>3</option></select></label>
         </div>
         <div class="row" style="margin-top:6px">
           <label>Risk per trade %<input type="number" id="lvRisk" step="0.1" min="0.1" max="5"></label>
@@ -159,7 +162,10 @@
           <label>Max open<input type="number" id="lvOpen" min="1"></label>
           <label>Max trades/day<input type="number" id="lvMaxDay" min="1"></label>
         </div>
-        <details style="margin-top:8px"><summary>🔑 Testnet API keys (stay on this PC)</summary>
+        <div class="note mt5Only hide">MetaTrader 5: open MT5 on this PC, log in to a <b>DEMO</b> account and press the <b>Algo Trading</b> button
+          (it turns green), then choose this market and press Save. A REAL-money MT5 login is refused here.
+          Leverage is set by your broker; the bot sizes each trade from your risk %.</div>
+        <details class="bnOnly" style="margin-top:8px"><summary>🔑 Testnet API keys (stay on this PC)</summary>
           <div class="row" style="margin-top:6px">
             <label>Futures testnet key<input id="lvFk" type="password" style="width:200px"></label>
             <label>Futures testnet secret<input id="lvFs" type="password" style="width:200px"></label>
@@ -176,18 +182,18 @@
       <div class="box"><h3>🤖 Auto trading</h3>
         <div class="row">
           <label>Strategy<select id="lvStrat"></select></label>
-          <label style="flex-direction:row;align-items:center;gap:6px;color:var(--tx)"><input type="checkbox" id="lvUntested">practise untested (testnet only)</label>
+          <label style="flex-direction:row;align-items:center;gap:6px;color:var(--tx)"><input type="checkbox" id="lvUntested">practise untested (testnet / demo only)</label>
         </div>
         <div class="note" style="margin-top:4px">Uses the market and timeframe of the chart. It runs a backtest first and only trades a strategy that PASSES
-          (or an untested one on TESTNET if ticked). Entries, stop-loss, take-profit, break-even, trailing and exits are automatic.</div>
+          (or an untested one on TESTNET / MT5 DEMO if ticked). Entries, stop-loss, take-profit, break-even, trailing and exits are automatic.</div>
         <div class="row" style="margin-top:8px"><button class="pri" id="lvAutoOn">▶ Start auto</button><button id="lvAutoOff">■ Stop auto</button></div>
         <div class="note" id="lvAutoState"></div>
         <h3 style="margin-top:12px">✋ Manual</h3>
         <div class="row"><button class="buy" id="lvBuy">BUY / LONG</button><button class="sell" id="lvSell">SELL / SHORT</button><button id="lvClose">Close position</button></div>
-        <div class="note">Stop 1.5 × ATR, target 2 × stop, size from your risk %; both orders are placed on Binance.</div>
+        <div class="note">Stop 1.5 × ATR, target 2 × stop, size from your risk %. The stop-loss and take-profit are placed on Binance / in MT5 with the trade.</div>
       </div>
     </div>
-    <h3 style="margin:14px 0 4px">Open positions (on Binance)</h3><div class="scroll"><table id="lvPos"></table></div>
+    <h3 style="margin:14px 0 4px">Open positions (<span id="lvWhere">on Binance</span>)</h3><div class="scroll"><table id="lvPos"></table></div>
     <h3 style="margin:14px 0 4px">Closed</h3><div class="scroll"><table id="lvHist"></table></div>
     <div id="lvLog" style="background:#020617;border-radius:8px;padding:8px;font:12px ui-monospace,monospace;max-height:220px;overflow:auto;margin-top:10px"></div>
   </div>
@@ -201,6 +207,9 @@
       <li><b>🧪 Backtest</b> tests all 5 strategies on history. Only consider a strategy that says <b>PASS</b> on this market and timeframe.</li>
       <li><b>🤖 Practice trading</b>: start auto trading with a PASS strategy, or trade by hand, with $10,000 practice money.
         Practise for weeks (50+ trades) and compare with the backtest before you think about real money.</li>
+      <li><b>⚡ Live trading (PC)</b> appears when you open this page from DigitBot.exe. It trades Binance Futures/Spot (testnet first)
+        and forex/gold through <b>MetaTrader 5 on a DEMO account</b>: choose the market, press Save, then use Manual or Start auto.
+        For MT5, set "Prices from" to MetaTrader 5 so the chart shows your broker's own prices.</li>
       <li><b>Real trading</b>: the DigitBot PC app trades forex through MetaTrader 5 and crypto through Binance (testnet first), with the same strategies and limits.</li>
     </ol></div>
     <div class="box" style="margin-top:10px"><h3>The 5 strategies</h3><div id="stratHelp"></div></div>

@@ -7,20 +7,25 @@
     forex: [["EURUSDT", "EUR/USD", "fx"], ["GBPUSDT", "GBP/USD", "fx"], ["AUDUSDT", "AUD/USD", "fx"], ["PAXGUSDT", "Gold XAU/USD", "gold"]],
     crypto: [["BTCUSDT", "Bitcoin BTC/USDT", "c"], ["ETHUSDT", "Ethereum ETH/USDT", "c"], ["BNBUSDT", "BNB/USDT", "c"], ["SOLUSDT", "Solana SOL/USDT", "c"],
              ["XRPUSDT", "XRP/USDT", "c"], ["DOGEUSDT", "Dogecoin DOGE/USDT", "c"], ["ADAUSDT", "Cardano ADA/USDT", "c"], ["TRXUSDT", "TRON TRX/USDT", "c"]],
+    mt5: [["EURUSD", "EUR/USD", "fx"], ["GBPUSD", "GBP/USD", "fx"], ["USDJPY", "USD/JPY", "fx"], ["AUDUSD", "AUD/USD", "fx"], ["USDCAD", "USD/CAD", "fx"],
+          ["USDCHF", "USD/CHF", "fx"], ["NZDUSD", "NZD/USD", "fx"], ["EURJPY", "EUR/JPY", "fx"], ["GBPJPY", "GBP/JPY", "fx"], ["XAUUSD", "Gold XAU/USD", "gold"],
+          ["XAGUSD", "Silver XAG/USD", "idx"], ["US30", "Dow Jones (US30)", "idx"], ["NAS100", "Nasdaq (NAS100)", "idx"]],
   };
   const TF_MS = { "15m": 9e5, "1h": 36e5, "4h": 144e5, "1d": 864e5 };
   const COLORS = ["#38bdf8", "#f59e0b", "#a78bfa", "#22c55e", "#f472b6"];
   let mode = location.hash === "#crypto" ? "crypto" : "forex";
   let bars = [], B = null, lastClosedT = 0, loading = false, lastFull = 0;
-  const mtype = () => mode === "crypto" ? $("mtype").value : "spot";
+  const isMT5 = () => mode === "forex" && !!PC && $("fxsrc").value === "mt5";
+  const mtype = () => mode === "crypto" ? $("mtype").value : isMT5() ? "mt5" : "spot";
+  const mlist = () => isMT5() ? MARKETS.mt5 : MARKETS[mode];
   const restBase = () => mtype() === "futures" ? "https://fapi.binance.com/fapi/v1/" : DATA;
 
   // ---------------------------------------------------------------- helpers
   const dec = p => p >= 1000 ? 2 : p >= 10 ? 3 : p >= 1 ? 5 : 6;
   const fmt = (p, d) => p == null || isNaN(p) ? "–" : (+p).toFixed(d == null ? dec(p) : d);
   const money = v => (v < 0 ? "-$" : "$") + Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const market = () => MARKETS[mode].find(m => m[0] === $("sym").value) || MARKETS[mode][0];
-  const label = s => (MARKETS.forex.concat(MARKETS.crypto).find(m => m[0] === s) || [s, s])[1];
+  const market = () => mlist().find(m => m[0] === $("sym").value) || mlist()[0];
+  const label = s => (MARKETS.forex.concat(MARKETS.crypto, MARKETS.mt5).find(m => m[0] === s) || [s, s])[1];
   function log(msg) { const d = document.createElement("div"); d.textContent = new Date().toTimeString().slice(0, 8) + " " + msg; $("log").appendChild(d); $("log").scrollTop = 1e9; }
   const params = () => ({ sl_atr: +$("btSl").value || 1.5, rr: +$("btRr").value || 2, breakeven_r: +$("btBe").value, longOnly: $("btLong").checked });
 
@@ -29,8 +34,23 @@
     const r = await fetch(u); if (!r.ok) throw new Error("price feed " + r.status);
     return (await r.json()).map(k => ({ t: k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5] }));
   }
+  async function mt5Candles(n) {               // prices from MetaTrader 5, through the PC bot
+    const sym = $("sym").value, tf = $("tf").value, r = await api(`/api/candles?symbol=${sym}&tf=${tf}&n=${n}`);
+    if (r.error) throw new Error(r.error);
+    return { sym, tf, bars: r.bars.map(k => ({ t: k[0], o: k[1], h: k[2], l: k[3], c: k[4], v: k[5] })) };
+  }
   async function loadHistory() {
     if (loading) return; loading = true;
+    if (isMT5()) {
+      $("px").textContent = "loading…";
+      if (ws) { ws.onclose = null; ws.close(); ws = null; wsKey = ""; }
+      try {
+        const r = await mt5Candles(3000);
+        bars = r.bars; lastClosedT = 0; recompute(true); fitChart(); mt5Alive = Date.now();
+        log(`loaded ${bars.length} bars of ${label(r.sym)} ${r.tf} from MetaTrader 5`);
+      } catch (e) { $("px").textContent = "no data"; bars = []; log("MetaTrader 5: " + e.message + (/not selected/.test(e.message) ? " - choose 'Forex – MetaTrader 5' in ⚡ Live trading and press Save" : "")); }
+      loading = false; return;
+    }
     const sym = $("sym").value, tf = $("tf").value, per = mtype() === "futures" ? 1500 : 1000;
     $("px").textContent = "loading…";
     try {
@@ -41,7 +61,18 @@
     } catch (e) { $("px").textContent = "no data"; log("could not load prices: " + e.message); }
     loading = false;
   }
+  let mt5Alive = 0;
+  async function mt5Tick() {                    // MT5 has no browser feed: ask the PC bot every 2 s
+    if (!isMT5() || loading || !bars.length) return;
+    try {
+      const r = await mt5Candles(3);
+      if (r.sym !== $("sym").value || r.tf !== $("tf").value || !isMT5()) return;
+      const before = bars.length; r.bars.forEach(mergeBar); mt5Alive = Date.now();
+      if (bars.length !== before || Date.now() - lastFull > 3000) recompute(true); else liveTick();
+    } catch (e) { /* shown by the status line */ }
+  }
   async function refreshLatest() {               // backup if the live feed is quiet
+    if (isMT5()) return;
     if (loading || !bars.length || Date.now() - wsAlive < 20000) return;
     try {
       const sym = $("sym").value, tf = $("tf").value, k = await klines(sym, tf, 3);
@@ -59,6 +90,7 @@
   // ---------------------------------------------------------------- live feed (websocket): moves with every trade
   let ws = null, wsAlive = 0, wsN = 0, wsKey = "";
   function connectWS() {
+    if (isMT5()) return;
     const sym = $("sym").value.toLowerCase(), tf = $("tf").value, key = sym + tf + mtype();
     if (ws && wsKey === key && ws.readyState <= 1) return;
     if (ws) { ws.onclose = null; ws.close(); }
@@ -74,12 +106,18 @@
     ws.onclose = () => setTimeout(() => { if (wsKey === key) { ws = null; connectWS(); } }, 3000);
   }
   setInterval(() => {
+    if (isMT5()) {
+      const a = (Date.now() - mt5Alive) / 1000;
+      $("live").innerHTML = mt5Alive && a < 10 ? `🟢 <b>live</b> · MetaTrader 5 feed (your broker's bid price, broker time) · updated ${a.toFixed(0)} s ago · <span class="pc">PC bot connected</span>`
+        : `🟡 waiting for MetaTrader 5… (choose 'Forex – MetaTrader 5' in ⚡ Live trading, press Save, and keep MT5 open and logged in to a DEMO account)`;
+      return;
+    }
     const age = (Date.now() - wsAlive) / 1000;
     $("live").innerHTML = wsAlive && age < 15 ? `🟢 <b>live</b> · ${mtype() === "futures" ? "Binance Futures" : "Binance Spot"} feed · last update ${age.toFixed(0)} s ago` +
       (PC ? ` · <span class="pc">PC bot connected</span>` : "") : `🟡 waiting for the live feed… (prices refresh every 15 s meanwhile)`;
   }, 1000);
   // the last bar is still forming; signals only use closed bars
-  const closedIdx = () => { const tfms = TF_MS[$("tf").value]; let i = B.n - 1; while (i > 0 && B.t[i] + tfms > Date.now()) i--; return i; };
+  const closedIdx = () => { if (isMT5()) return Math.max(0, B.n - 2); const tfms = TF_MS[$("tf").value]; let i = B.n - 1; while (i > 0 && B.t[i] + tfms > Date.now()) i--; return i; };
 
   function liveTick() {                          // cheap update between full recomputes
     const x = bars[bars.length - 1]; if (!x || !S.c) return;
@@ -95,7 +133,7 @@
     $("chg").innerHTML = `<span class="${ch >= 0 ? "up" : "dn"}">${ch >= 0 ? "▲" : "▼"} ${ch.toFixed(2)}% (24h)</span>`;
     const v = E.marketView(B);
     $("bias").innerHTML = `<span class="tag ${v.score >= 25 ? "buy" : v.score <= -25 ? "sell" : "none"}">${v.bias} ${v.score > 0 ? "+" : ""}${v.score}</span>`;
-    $("src").textContent = mode === "forex" ? `price from Binance ${$("sym").value} (follows ${label($("sym").value)})` : "live Binance price";
+    $("src").textContent = isMT5() ? "price from your MetaTrader 5 broker" : mode === "forex" ? `price from Binance ${$("sym").value} (follows ${label($("sym").value)})` : "live Binance price";
     $("view").innerHTML = `<b>${v.bias}</b> (score ${v.score}, from -100 to +100)<ul style="margin:4px 0 0">${v.notes.map(n => `<li>${n}</li>`).join("")}</ul>`;
     renderSignals(ci); renderCalc(ci); draw();
     if (B.t[ci] !== lastClosedT) { const isNew = lastClosedT !== 0; lastClosedT = B.t[ci]; if (isNew) onNewBar(ci); }
@@ -104,7 +142,7 @@
 
   // ---------------------------------------------------------------- chart (TradingView Lightweight Charts, free / open source)
   const LW = window.LightweightCharts, TZ = new Date().getTimezoneOffset() * 60;
-  const tsec = ms => ms / 1000 - TZ;                     // show local time on the chart
+  const tsec = ms => isMT5() ? ms / 1000 : ms / 1000 - TZ;   // local time on the chart (MT5: broker time)
   const cbar = x => ({ time: tsec(x.t), open: x.o, high: x.h, low: x.l, close: x.c });
   const vbar = x => ({ time: tsec(x.t), value: x.v, color: x.c >= x.o ? "rgba(34,197,94,.45)" : "rgba(239,68,68,.45)" });
   const IND = [["ema", "EMA 20/50/200", true], ["bb", "Bollinger", false], ["vol", "Volume", true], ["rsi", "RSI", true],
@@ -171,8 +209,8 @@
     if (ind("pos")) {
       const sym = $("sym").value, add = (price, color, title) => posLines.push(S.c.createPriceLine({ price, color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title }));
       acct.pos.filter(x => x.sym === sym).forEach(x => { add(x.entry, "#e2e8f0", "practice " + x.side); add(x.sl, "#ef4444", "SL"); add(x.tp, "#22c55e", "TP"); });
-      (liveOpen || []).filter(x => x.symbol === sym && x.venue === mtype()).forEach(x => {
-        add(x.entry, "#38bdf8", `LIVE ${x.venue === "futures" ? (x.side === "buy" ? "LONG" : "SHORT") : "BUY"}`); add(x.sl, "#ef4444", "SL"); add(x.tp, "#22c55e", "TP"); });
+      (liveOpen || []).filter(x => (x.symbol === sym || x.symbol.toUpperCase().startsWith(sym)) && x.venue === mtype()).forEach(x => {
+        add(x.entry, "#38bdf8", `LIVE ${x.venue === "futures" ? (x.side === "buy" ? "LONG" : "SHORT") : x.side.toUpperCase()}`); add(x.sl, "#ef4444", "SL"); add(x.tp, "#22c55e", "TP"); });
     }
   }
 
@@ -193,7 +231,7 @@
     if (!(dist > 0)) return;
     const units = risk / dist, m = market();
     const size = m[2] === "fx" ? `${(units / 1e5).toFixed(2)} lots (${Math.round(units).toLocaleString()} units)`
-               : m[2] === "gold" ? `${(units / 100).toFixed(2)} lots (${units.toFixed(2)} oz)` : `${units.toFixed(units * px > 100 ? 4 : 2)} ${m[0].replace("USDT", "")}`;
+               : m[2] === "gold" ? `${(units / 100).toFixed(2)} lots (${units.toFixed(2)} oz)` : m[2] === "idx" ? `${units.toFixed(2)} units (contract sizes differ by broker)` : `${units.toFixed(units * px > 100 ? 4 : 2)} ${m[0].replace("USDT", "")}`;
     $("calcOut").innerHTML = `Risk ${money(risk)} with a stop ${fmt(dist)} away → size <b>${size}</b>, worth about ${money(units * px)}` +
       (units * px > bal ? ` <span class="dn">(more than the account: this needs leverage, which makes losses faster)</span>` : "");
   }
@@ -324,7 +362,8 @@
     mode = location.hash === "#crypto" ? "crypto" : "forex";
     $("title").textContent = mode === "forex" ? "💱 Forex" : "₿ Crypto";
     $("swForex").classList.toggle("on", mode === "forex"); $("swCrypto").classList.toggle("on", mode === "crypto");
-    $("sym").innerHTML = MARKETS[mode].map(m => `<option value="${m[0]}">${m[1]}</option>`).join("");
+    $("fxWrap").classList.toggle("hide", !(mode === "forex" && PC));
+    $("sym").innerHTML = mlist().map(m => `<option value="${m[0]}">${m[1]}</option>`).join("");
     $("btLong").checked = $("ptLong").checked = mode === "crypto" && mtype() === "spot";
     $("mtWrap").style.display = mode === "crypto" ? "" : "none";
     $("btCost").value = mode === "crypto" ? 0.1 : 0.02;
@@ -338,6 +377,9 @@
   $("sym").onchange = $("tf").onchange = () => { if (auto) { auto = null; $("ptState").textContent = "Auto stopped (market changed)."; log("auto stopped: market or timeframe changed"); } $("btTable").innerHTML = ""; loadHistory(); };
   $("ptStrat").onchange = draw; $("ptLong").onchange = draw;
   $("mtype").onchange = () => { if (auto) { auto = null; $("ptState").textContent = "Auto stopped (market changed)."; } $("btTable").innerHTML = ""; loadHistory(); };
+  $("fxsrc").onchange = () => { localStorage.setItem("dbFxSrc", $("fxsrc").value); setMode(); };
+  if (PC && localStorage.getItem("dbFxSrc") === "mt5") $("fxsrc").value = "mt5";
+  setInterval(mt5Tick, 2000);
   $("reload").onclick = loadHistory; $("btRun").onclick = runBacktest;
   ["calcBal", "calcRisk", "calcSl"].forEach(id => $(id).oninput = () => B && renderCalc(closedIdx()));
 
@@ -373,27 +415,53 @@
   if (PC) {
     $("tabLive").classList.remove("hide");
     $("lvStrat").innerHTML = Object.entries(E.STRATEGIES).map(([k, s]) => `<option value="${k}">${s.name}</option>`).join("");
-    let filled = false;
-    const lvMoney = v => (v < 0 ? "-" : "") + Math.abs(v).toFixed(2) + " USDT";
+    let filled = false, lastSt = null, ccy = "USDT";
+    const lvMoney = v => (v < 0 ? "-" : "") + Math.abs(v).toFixed(2) + " " + ccy;
+    function lvShow() {                      // MT5 has no testnet/leverage choice; Binance has no MT5 note
+      const m = $("lvMarket").value === "mt5";
+      document.querySelectorAll(".bnOnly").forEach(e => e.classList.toggle("hide", m));
+      document.querySelectorAll(".mt5Only").forEach(e => e.classList.toggle("hide", !m));
+    }
+    function chartToMarket(mk) {             // show the chart that matches the live market
+      if (mk === "mt5") {
+        if (mode !== "forex" || $("fxsrc").value !== "mt5") { $("fxsrc").value = "mt5"; localStorage.setItem("dbFxSrc", "mt5");
+          if (location.hash !== "#forex") location.hash = "#forex"; else setMode(); }
+      } else {
+        if (mode !== "crypto") { $("mtype").value = mk; location.hash = "#crypto"; }
+        else if ($("mtype").value !== mk) { $("mtype").value = mk; loadHistory(); }
+      }
+    }
+    const chartMatches = () => lastSt && (lastSt.market === "mt5" ? isMT5() : mode === "crypto" && $("mtype").value === lastSt.market);
+    function needMatch() {
+      if (chartMatches()) return true;
+      alert(lastSt && lastSt.market === "mt5" ? "Switch the chart to Forex with 'Prices from: MetaTrader 5' first (live trading is set to MetaTrader 5)."
+        : `Live trading is set to Binance ${lastSt ? lastSt.market : ""}: switch the chart to Crypto › ${lastSt ? lastSt.market : ""} first (or change the market in Account and limits, then Save).`);
+      return false;
+    }
     async function poll() {
       let st; try { st = await api("/api/status"); } catch (e) { $("lvKpi").innerHTML = `<div>PC bot<b class="dn">not reachable</b></div>`; return; }
-      liveOpen = st.open || [];
+      liveOpen = st.open || []; lastSt = st; ccy = st.ccy || "USDT";
       if (!filled) {
         filled = true; const s = st.settings;
-        $("lvMarket").value = s.market; $("lvNet").value = s.testnet ? "1" : "0"; $("lvLev").value = String(s.leverage);
+        $("lvMarket").value = s.market; lvShow();
+        $("lvNet").value = s.testnet ? "1" : "0"; $("lvLev").value = String(s.leverage);
         $("lvRisk").value = s.risk_per_trade_pct; $("lvDay").value = s.max_daily_loss_pct; $("lvOpen").value = s.max_open_trades; $("lvMaxDay").value = s.max_trades_per_day;
-        if (mode === "crypto" && $("mtype").value !== s.market) { $("mtype").value = s.market; loadHistory(); }
+        if (s.market === "mt5") chartToMarket("mt5");
+        else if (mode === "crypto" && $("mtype").value !== s.market) { $("mtype").value = s.market; loadHistory(); }
       }
+      $("lvWhere").textContent = st.market === "mt5" ? "in MetaTrader 5" : "on Binance";
       const k = (l, v, c) => `<div>${l}<b class="${c || ""}">${v}</b></div>`;
-      const keyOk = st.market === "futures" ? (st.mode === "LIVE" ? st.keys.live : st.keys.futures_testnet) : (st.mode === "LIVE" ? st.keys.live : st.keys.spot_testnet);
-      $("lvKpi").innerHTML = k("money", st.mode, st.mode === "LIVE" ? "dn" : "up") + k("market", st.market + (st.market === "futures" ? ` ${st.leverage}x` : "")) +
+      const mt5 = st.market === "mt5";
+      const keyOk = mt5 ? !!st.account : st.market === "futures" ? (st.mode === "LIVE" ? st.keys.live : st.keys.futures_testnet) : (st.mode === "LIVE" ? st.keys.live : st.keys.spot_testnet);
+      $("lvKpi").innerHTML = k("money", st.mode, st.mode === "LIVE" ? "dn" : "up") + k("market", mt5 ? "MetaTrader 5" : st.market + (st.market === "futures" ? ` ${st.leverage}x` : "")) +
         k("equity", st.equity == null ? "–" : lvMoney(st.equity)) + k("available", st.available == null ? "–" : lvMoney(st.available)) +
         k("today", lvMoney(st.today_pl || 0), (st.today_pl || 0) >= 0 ? "up" : "dn") + k("open", liveOpen.length) +
-        k("auto", st.auto ? `${st.auto.strategy} ${st.auto.symbol} ${st.auto.tf}` : "off", st.auto ? "up" : "") + k("API key", keyOk ? "set" : "missing", keyOk ? "up" : "dn");
-      $("lvAutoState").innerHTML = st.account_error ? `<span class="dn">Account: ${st.account_error}</span>` : (st.auto ? `<b class="up">AUTO ON</b> ${st.auto.passed ? "(strategy PASSED its backtest)" : "(untested strategy - testnet practice)"}` : "Auto is off.");
+        k("auto", st.auto ? `${st.auto.strategy} ${st.auto.symbol} ${st.auto.tf}` : "off", st.auto ? "up" : "") +
+        (mt5 ? k("MT5 account", st.account ? `${st.account.login} demo` : "not connected", keyOk ? "up" : "dn") : k("API key", keyOk ? "set" : "missing", keyOk ? "up" : "dn"));
+      $("lvAutoState").innerHTML = st.account_error ? `<span class="dn">Account: ${st.account_error}</span>` : (st.auto ? `<b class="up">AUTO ON</b> ${st.auto.passed ? "(strategy PASSED its backtest)" : `(untested strategy - ${st.mode} practice)`}` : "Auto is off.");
       $("lvPos").innerHTML = `<tr><th>market</th><th>side</th><th>size</th><th>entry</th><th>stop</th><th>target</th><th>P/L now</th><th>strategy</th><th></th></tr>` +
-        (liveOpen.map(x => `<tr><td>${x.symbol} ${x.venue}${x.venue === "futures" ? " " + x.lev + "x" : ""}</td><td><span class="tag ${x.side}">${x.venue === "futures" ? (x.side === "buy" ? "LONG" : "SHORT") : "BUY"}</span></td>
-          <td>${(+x.qty).toPrecision(4)}</td><td>${fmt(x.entry)}</td><td>${fmt(x.sl)}</td><td>${fmt(x.tp)}</td><td class="${(x.upl || 0) >= 0 ? "up" : "dn"}">${x.upl == null ? "–" : lvMoney(x.upl)}</td>
+        (liveOpen.map(x => `<tr><td>${x.symbol} ${x.venue === "mt5" ? "MT5" : x.venue}${x.venue === "futures" ? " " + x.lev + "x" : ""}</td><td><span class="tag ${x.side}">${x.venue === "futures" ? (x.side === "buy" ? "LONG" : "SHORT") : x.side.toUpperCase()}</span></td>
+          <td>${x.venue === "mt5" ? (+x.qty) + " lots" : (+x.qty).toPrecision(4)}</td><td>${fmt(x.entry)}</td><td>${fmt(x.sl)}</td><td>${fmt(x.tp)}</td><td class="${(x.upl || 0) >= 0 ? "up" : "dn"}">${x.upl == null ? "–" : lvMoney(x.upl)}</td>
           <td>${x.strategy}</td><td><button data-lvclose="${x.symbol}">Close</button></td></tr>`).join("") || `<tr><td colspan="9" class="mut">No open positions.</td></tr>`);
       $("lvHist").innerHTML = `<tr><th>closed</th><th>market</th><th>side</th><th>entry</th><th>exit</th><th>P/L</th><th>reason</th></tr>` +
         ((st.closed || []).slice().reverse().map(x => `<tr><td>${(x.closed || "").replace("T", " ")}</td><td>${x.symbol}</td><td>${x.side}</td><td>${fmt(x.entry)}</td><td>${fmt(x.exit)}</td>
@@ -403,23 +471,24 @@
       if (B) draw();
     }
     poll(); setInterval(poll, 3000);
-    $("lvMarket").onchange = () => { if (mode === "crypto") { $("mtype").value = $("lvMarket").value; loadHistory(); } };
+    $("lvMarket").onchange = lvShow;
     $("lvSave").onclick = async () => {
       const b = { market: $("lvMarket").value, testnet: $("lvNet").value === "1", leverage: +$("lvLev").value, risk_per_trade_pct: +$("lvRisk").value,
                   max_daily_loss_pct: +$("lvDay").value, max_open_trades: +$("lvOpen").value, max_trades_per_day: +$("lvMaxDay").value,
                   futures_testnet_key: $("lvFk").value.trim(), futures_testnet_secret: $("lvFs").value.trim(),
                   testnet_key: $("lvSk").value.trim(), testnet_secret: $("lvSs").value.trim() };
+      if (b.market === "mt5") b.testnet = true;
       if (!b.testnet && !confirm("LIVE = REAL MONEY on Binance. Continue?")) return;
-      await api("/api/settings", b); ["lvFk", "lvFs", "lvSk", "lvSs"].forEach(id => $(id).value = ""); filled = false; poll();
+      await api("/api/settings", b); ["lvFk", "lvFs", "lvSk", "lvSs"].forEach(id => $(id).value = ""); filled = false;
+      chartToMarket(b.market); setTimeout(() => { if (isMT5()) loadHistory(); }, 2500); poll();
     };
     $("lvAutoOn").onclick = () => {
-      if (mode !== "crypto") return alert("Live trading here is for Crypto (Binance). Forex live trading: DigitBot.exe › Forex (MT5).");
-      if ($("mtype").value !== $("lvMarket").value) { $("mtype").value = $("lvMarket").value; loadHistory(); }
+      if (!needMatch()) return;
       api("/api/auto", { on: true, symbol: $("sym").value, tf: $("tf").value, strategy: $("lvStrat").value, untested: $("lvUntested").checked });
     };
     $("lvAutoOff").onclick = () => api("/api/auto", { on: false });
-    $("lvBuy").onclick = () => mode === "crypto" && confirm(`BUY / LONG ${$("sym").value} now?`) && api("/api/order", { symbol: $("sym").value, side: "buy" });
-    $("lvSell").onclick = () => mode === "crypto" && confirm(`SELL / SHORT ${$("sym").value} now?`) && api("/api/order", { symbol: $("sym").value, side: "sell" });
+    $("lvBuy").onclick = () => needMatch() && confirm(`BUY / LONG ${$("sym").value} now (${lastSt.mode})?`) && api("/api/order", { symbol: $("sym").value, side: "buy" });
+    $("lvSell").onclick = () => needMatch() && confirm(`SELL / SHORT ${$("sym").value} now (${lastSt.mode})?`) && api("/api/order", { symbol: $("sym").value, side: "sell" });
     $("lvClose").onclick = () => confirm(`Close the bot's ${$("sym").value} position now?`) && api("/api/close", { symbol: $("sym").value });
     $("lvPos").onclick = e => { const s = e.target.dataset.lvclose; if (s && confirm(`Close ${s} now?`)) api("/api/close", { symbol: s }); };
     $("lvStrat").onchange = draw;
