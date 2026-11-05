@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.9.0
+// @version      2.10.0
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -38,6 +38,20 @@
                 trigger: "0", inRow: 1, maxTrades: 10, maxMinutes: 20, cooldown: 2,
                 maxStake: 10, stopLoss: 20, takeProfit: 20, allowReal: false, live: false };
   DEF.strategy = "custom"; DEF.tab = "auto"; DEF.autoStake = 1; DEF.mode = "auto"; DEF.dayLimit = 20; DEF.alerts = true;
+  DEF.plan = "flat"; DEF.planMult = 2; DEF.planSteps = 4;
+  // Stake plans (as in MMG's Auto Trader). They change HOW you win or lose, never the average: each trade still loses a little.
+  const PLANS = { flat: "Flat – same stake every trade (safest)", martingale: "Martingale – multiply after a loss, reset after a win",
+                  paroli: "Paroli – multiply after a win, reset after a loss", dalembert: "D'Alembert – +1 base after a loss, −1 after a win",
+                  fibonacci: "Fibonacci – follow 1,1,2,3,5,8… after losses" };
+  const FIB = [1, 1, 2, 3, 5, 8, 13, 21, 34, 55, 89];
+  // next stake after a result; ps = { step } ; returns the new stake (0 = back to base)
+  function planNext(plan, base, cur, res, ps, mult, steps) {
+    if (plan === "martingale") { if (res === "loss" && ps.step < steps) { ps.step++; return cur * mult; } ps.step = 0; return base; }
+    if (plan === "paroli") { if (res === "win" && ps.step < steps) { ps.step++; return cur * mult; } ps.step = 0; return base; }
+    if (plan === "dalembert") { ps.step = res === "loss" ? Math.min(steps, ps.step + 1) : Math.max(0, ps.step - 1); return base * (1 + ps.step); }
+    if (plan === "fibonacci") { ps.step = res === "loss" ? Math.min(steps, ps.step + 1) : Math.max(0, ps.step - 2); return base * FIB[ps.step]; }
+    ps.step = 0; return base;
+  }
 
   // Ready-made strategies: picking one fills in every setting below (you can still change them).
   // Safe defaults for all: $1 stake, stop-loss $10, take-profit $10, max stake $5, LIVE clicks on.
@@ -448,6 +462,10 @@
         STRATEGIES.filter(s => s.group === g).map(s => opt(s.id, s.name)).join("") + "</optgroup>").join("")}</select></label>
     <label>Stake per trade ($)<input id="f_autoStake" type="number" min="0.35" step="0.01" inputmode="decimal"></label>
     <div class="tip" style="grid-column:auto;align-self:end">A new stake resets stop-loss and take-profit to 10 × stake (you can change them).</div>
+    <label style="grid-column:1/3">Stake plan<select id="f_plan">${Object.entries(PLANS).map(([k, v]) => opt(k, v)).join("")}</select></label>
+    <label id="w_planMult">Multiply by<input id="f_planMult" type="number" min="1.1" max="3" step="0.1" inputmode="decimal"></label>
+    <label id="w_planSteps">Max steps, then reset<input id="f_planSteps" type="number" min="1" max="8" step="1" inputmode="numeric"></label>
+    <div class="tip" id="mdbPlanTip" style="grid-column:1/3"></div>
     <label>Stop-loss ($)<input id="f_aSL" type="number" min="0" step="0.01" inputmode="decimal"></label>
     <label>Take-profit ($)<input id="f_aTP" type="number" min="0" step="0.01" inputmode="decimal"></label>
     <div class="odds" id="mdbStratDesc"></div>
@@ -533,21 +551,23 @@
   mount();
   setInterval(mount, 2000);   // the site is a single-page app: re-attach if it re-renders
 
-  const TEXT_FIELDS = { button: 1, trigger: 1, duration: 1 };
+  const TEXT_FIELDS = { button: 1, trigger: 1, duration: 1, plan: 1 };
   const FIELDS = ["button", "pick", "duration", "stakeSet", "autoSetup", "trigger", "inRow", "cooldown", "maxTrades",
-                  "maxMinutes", "stopLoss", "takeProfit", "maxStake", "live", "allowReal", "dayLimit", "alerts"];
+                  "maxMinutes", "stopLoss", "takeProfit", "maxStake", "live", "allowReal", "dayLimit", "alerts", "plan", "planMult", "planSteps"];
   for (const f of FIELDS) {
     const el = $("f_" + f);
     if (el.type === "checkbox") el.checked = !!S[f]; else el.value = S[f];
     el.addEventListener("change", () => {
-      if (running && ["button", "pick", "duration", "stakeSet", "autoSetup"].includes(f)) {
+      if (running && ["button", "pick", "duration", "stakeSet", "autoSetup", "plan", "planMult", "planSteps"].includes(f)) {
         log("Stop the bot before changing the trade settings.", "warn");
         if (el.type === "checkbox") el.checked = !!S[f]; else el.value = S[f];
         return;
       }
       S[f] = el.type === "checkbox" ? el.checked : TEXT_FIELDS[f] ? el.value : parseFloat(el.value);
       if (f === "allowReal" && el.checked && !confirm("Allow trading on a REAL money account?\n\nThe bot cannot predict digits. Only use money you can afford to lose.")) { el.checked = false; S[f] = false; }
-      if (!["live", "allowReal", "dayLimit", "alerts"].includes(f)) S.strategy = "custom";   // you changed a strategy's setting
+      if (f === "plan" && S.plan !== "flat" && !confirm(`${PLANS[S.plan]}\n\nThis does NOT improve the odds: the average loss per trade stays the same. It turns many small results into ` +
+          `rare big ones (Martingale: a run of losses multiplies the stake fast). The bot caps it at your max steps and max stake. Press 🧪 Test to see it. Use it?`)) { S.plan = "flat"; el.value = "flat"; }
+      if (!["live", "allowReal", "dayLimit", "alerts", "plan", "planMult", "planSteps"].includes(f)) S.strategy = "custom";   // you changed a strategy's setting
       save(); refreshForm();
     });
   }
@@ -591,8 +611,18 @@
     if (st) { applyStrategy(st); log(`stake $${S.autoStake}: stop-loss $${S.stopLoss}, take-profit $${S.takeProfit}`, "ok"); }
     save(); refreshForm();
   });
+  function planTip() {
+    const base = +S.stakeSet || 1, ps = { step: 0 }, seq = [base]; let cur = base;
+    for (let k = 0; k < +S.planSteps; k++) { cur = planNext(S.plan, base, cur, S.plan === "paroli" ? "win" : "loss", ps, +S.planMult, +S.planSteps); seq.push(r2(cur)); }
+    const top = Math.max(...seq), total = seq.slice(0, -1).reduce((a, b) => a + b, 0) + seq[seq.length - 1];
+    return S.plan === "flat" ? "Flat: the stake never changes. The safest choice." :
+      `Stakes in a ${S.plan === "paroli" ? "winning" : "losing"} run: ${seq.map(v => "$" + v).join(" → ")}. Highest stake <b>$${top}</b>` +
+      (S.plan === "paroli" ? "" : `; losing the whole run costs <b>$${r2(total)}</b>`) + `. Max stake is raised to $${r2(top)} while it runs. The average result per trade does not change.`;
+  }
   function refreshForm() {
     const st = strategyById(S.strategy);
+    $("mdbPlanTip").innerHTML = planTip();
+    $("w_planMult").style.display = ["martingale", "paroli"].includes(S.plan) ? "" : "none"; $("w_planSteps").style.display = S.plan === "flat" ? "none" : "";
     $("f_strategy").value = st ? st.id : "custom";
     $("mdbStratDesc").textContent = st ? st.desc + ` Stake $${S.stakeSet}, stop-loss $${S.stopLoss}, take-profit $${S.takeProfit}, max ${S.maxTrades} trades.`
                                        : "Your own settings below. Pick a strategy to fill them in automatically.";
@@ -737,12 +767,19 @@
                   `Stop-loss $${S.stopLoss}  Take-profit $${S.takeProfit}\n${odds}\n\nStart?`;
       if (!confirm(msg)) return;
     }
+    if (S.plan !== "flat") {
+      const ps = { step: 0 }; let cur = +S.stakeSet, top = cur;
+      for (let k = 0; k < +S.planSteps; k++) { cur = planNext(S.plan, +S.stakeSet, cur, S.plan === "paroli" ? "win" : "loss", ps, +S.planMult, +S.planSteps); top = Math.max(top, cur); }
+      plan = { base: +S.stakeSet, cur: +S.stakeSet, step: 0, seen: null, max: r2(top) };
+      if (S.maxStake < plan.max) { S.maxStake = plan.max; fillForm(); }
+      log(`stake plan: ${PLANS[S.plan].split(" – ")[0]}, base $${plan.base}, cap $${plan.max} (${S.planSteps} steps)`, "ok");
+    }
     keepAwake(true); audioUnlock();
     running = true; finishing = null; t0 = Date.now(); trades = 0; run = 0; startBal = balance(); lastTickAt = Date.now();
     $("mdbStart").disabled = true;
     log(`START ${S.live ? "LIVE" : "WATCH-ONLY"}${strategyById(S.strategy) ? " [" + strategyById(S.strategy).name + "]" : ""}: ${describe()} on ${triggerText()} x${S.inRow}`, "ok");
   }
-  let wake = null;
+  let wake = null, plan = { base: 1, cur: 1, step: 0, seen: null, max: 1 };
   async function keepAwake(on) {
     try {
       if (on && !wake && navigator.wakeLock && document.visibilityState === "visible") {
@@ -778,6 +815,7 @@
     } catch (e) {}
   }
   function stop(why) {
+    if (S.plan !== "flat" && plan.base) { S.stakeSet = plan.base; plan.cur = plan.base; save(); }
     if (!running) return;
     keepAwake(false);
     running = false; finishing = null; $("mdbStart").disabled = false;
@@ -1031,24 +1069,25 @@
     let pay = MODE[S.button] === currentMode() ? payoutPct(b) : null;
     const est = pay == null;
     if (est) pay = Math.max(1, (0.95 / wc - 1) * 100);
-    const st = +S.stakeSet > 0 ? +S.stakeSet : 1, gain = st * pay / 100;
+    const st = +S.stakeSet > 0 ? +S.stakeSet : 1;
     const cd = Math.max(1, Math.ceil(+S.cooldown || 0)), ticks = Math.max(1, (+S.maxMinutes || 1) * 60);
-    let up = 0, sl = 0, tp = 0, sum = 0, nTr = 0, worst = 0, best = 0;
+    let up = 0, sl = 0, tp = 0, sum = 0, nTr = 0, worst = 0, best = 0, staked = 0, bigStake = 0;
     for (let s = 0; s < runs; s++) {
-      let pl = 0, tr = 0, row = 0, last = -1e9;
+      let pl = 0, tr = 0, row = 0, last = -1e9, cur = st, big = st; const ps = { step: 0 };
       for (let k = 0; k < ticks && tr < S.maxTrades; k++) {
         row = triggerHit(Math.floor(Math.random() * 10)) ? row + 1 : 0;
         if (row < S.inRow) continue;
         row = 0;
         if (k - last < cd) continue;
-        if (S.stopLoss > 0 && st - pl > S.stopLoss) break;            // the bot won't risk passing the stop-loss
-        last = k; tr++; pl += Math.random() < wc ? gain : -st;
+        if (S.stopLoss > 0 && cur - pl > S.stopLoss) break;           // the bot won't risk passing the stop-loss
+        last = k; tr++; const won = Math.random() < wc; pl += won ? cur * pay / 100 : -cur; staked += cur; big = Math.max(big, cur);
+        cur = S.plan === "flat" ? st : planNext(S.plan, st, cur, won ? "win" : "loss", ps, +S.planMult, +S.planSteps);
         if (S.stopLoss > 0 && -pl >= S.stopLoss) { sl++; break; }
         if (S.takeProfit > 0 && pl >= S.takeProfit) { tp++; break; }
       }
-      sum += pl; nTr += tr; if (pl > 0) up++; worst = Math.min(worst, pl); best = Math.max(best, pl);
+      sum += pl; nTr += tr; if (pl > 0) up++; worst = Math.min(worst, pl); best = Math.max(best, pl); bigStake = Math.max(bigStake, big);
     }
-    return { runs, pay, est, wc, up, sl, tp, avg: sum / runs, avgTr: nTr / runs, worst, best, ev: (wc * (1 + pay / 100) - 1) * 100 };
+    return { runs, pay, est, wc, up, sl, tp, avg: sum / runs, avgTr: nTr / runs, worst, best, ev: (wc * (1 + pay / 100) - 1) * 100, perStaked: staked ? sum / staked * 100 : 0, bigStake };
   }
   $("mdbTest").onclick = () => {
     const r = simulate(1000), pc = n => Math.round(100 * n / r.runs) + "%", m = v => (v < 0 ? "-$" : "+$") + Math.abs(v).toFixed(2);
@@ -1058,6 +1097,7 @@
       `Ended in profit: <b>${pc(r.up)}</b> · hit take-profit: <b>${pc(r.tp)}</b> · hit stop-loss: <b>${pc(r.sl)}</b><br>` +
       `Average per run: <b class="${r.avg >= 0 ? "ok" : "warn"}">${m(r.avg)}</b> over ${r.avgTr.toFixed(1)} trades · best ${m(r.best)} · worst ${m(r.worst)}<br>` +
       `Each trade: <b class="${r.ev >= 0 ? "ok" : "warn"}">${r.ev >= 0 ? "+" : ""}${r.ev.toFixed(1)}%</b> of the stake on average. ` +
+      (S.plan !== "flat" ? `<br>Stake plan <b>${PLANS[S.plan].split(" – ")[0]}</b>: biggest stake used <b>$${r.bigStake.toFixed(2)}</b>; result per $ staked <b class="${r.perStaked >= 0 ? "ok" : "warn"}">${r.perStaked >= 0 ? "+" : ""}${r.perStaked.toFixed(1)}%</b> (flat stakes give about the same - the plan only reshapes wins and losses).<br>` : "") +
       `Profitable runs happen by luck; over many runs the average is what you keep.`;
     log(`test: ${pc(r.up)} of practice runs ended in profit, average ${m(r.avg)} per run`);
   };
@@ -1084,6 +1124,22 @@
         setupGame().then(() => log("game settings restored ✓", "ok"))
                    .catch(e => stop("can't restore the game settings: " + e))
                    .finally(() => { busy = false; });
+        return;
+      }
+    }
+    if (S.live && S.plan !== "flat") {                    // stake plan: needs the last result first
+      if (waiting.length) { log(`digit ${d}: trigger - waiting for the last result (stake plan)`); return; }
+      const last = H.filter(x => x.t >= t0 && (x.res === "win" || x.res === "loss")).pop();
+      if (last && last.t !== plan.seen) {
+        plan.seen = last.t;
+        let next = r2(planNext(S.plan, plan.base, plan.cur, last.res, plan, +S.planMult, +S.planSteps));
+        if (next > plan.max) { log(`stake plan: next stake $${next} is above the cap $${plan.max} - back to $${plan.base}`, "warn"); next = plan.base; plan.step = 0; }
+        if (next !== plan.cur) log(`stake plan: last trade ${last.res === "win" ? "WON" : "LOST"} → next stake $${next}`);
+        plan.cur = next;
+      }
+      if (+S.stakeSet !== plan.cur) {
+        S.stakeSet = plan.cur; busy = true;
+        setupGame().then(() => log(`stake set to $${plan.cur} ✓`, "ok")).catch(e => stop("can't set the stake: " + e)).finally(() => { busy = false; });
         return;
       }
     }
