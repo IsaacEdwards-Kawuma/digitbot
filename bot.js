@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.8.1
+// @version      2.9.0
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -279,7 +279,7 @@
   #mdb .log{margin-top:6px;font:11px ui-monospace,monospace;max-height:110px;overflow:auto;background:#0f172a;color:#e2e8f0;border-radius:6px;padding:5px}
   #mdb .warn{color:#b91c1c;font-weight:600} #mdb .ok{color:#15803d;font-weight:600}
   #mdb .log .warn{color:#fca5a5} #mdb .log .ok{color:#86efac}
-  #mdb.min .bd,#mdb.min .hp,#mdb.min #mdbHelp,#mdb.min #mdbX{display:none!important}
+  #mdb.min .bd,#mdb.min .hp,#mdb.min .wl,#mdb.min #mdbHelp,#mdb.min #mdbHome,#mdb.min #mdbX{display:none!important}
   #mdb.min{width:auto;border-radius:999px} #mdb.min .hd{padding:7px 12px;border-radius:999px}
   #mdb.min .hd b{flex:none} #mdb .hd #mdbBadge{font-size:12px;font-weight:600;white-space:nowrap}
   #mdb .tabs{display:flex;gap:6px;margin-bottom:8px}
@@ -299,6 +299,22 @@
   #mdb .clr{grid-column:1/3;padding:7px;border:1px solid #fca5a5;border-radius:8px;background:#fff;color:#b91c1c;font-size:13px}
   #mdb .hp{display:none;padding:8px 10px;max-height:75vh;overflow:auto;font-size:13px}
   #mdb.help .bd{display:none} #mdb.help .hp{display:block}
+  #mdb .wl{display:none;padding:12px 12px 10px}
+  #mdb.welcome .bd,#mdb.welcome .hp{display:none!important} #mdb.welcome .wl{display:block}
+  #mdb .wl h3{margin:0 0 2px;font-size:16px} #mdb .wl .sub{font-size:12px;color:#64748b;margin-bottom:10px}
+  #mdb .wl button.ch{display:flex;align-items:center;gap:10px;width:100%;text-align:left;margin:0 0 8px;padding:10px 12px;
+   border:1px solid #cbd5e1;border-radius:12px;background:#fff;cursor:pointer;font:inherit;color:#0f172a}
+  #mdb .wl button.ch:hover{border-color:#0b7c8c;background:#f0fdfa}
+  #mdb .wl .ic{font-size:26px} #mdb .wl b{display:block;font-size:15px} #mdb .wl small{color:#64748b;font-size:11.5px}
+  #mdb .wl .ck2{display:flex;align-items:center;gap:6px;font-size:12px;color:#475569;margin-top:4px}
+  #mdbTrade{position:fixed;z-index:2147483647;inset:2vh 2vw;background:#0f172a;border-radius:14px;box-shadow:0 12px 50px rgba(0,0,0,.45);
+   display:none;flex-direction:column;overflow:hidden;font:13px system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  #mdbTrade.on{display:flex}
+  #mdbTrade .tb{display:flex;gap:6px;align-items:center;padding:8px 10px;background:#0b7c8c;color:#fff;flex-wrap:wrap}
+  #mdbTrade .tb b{flex:1;font-size:14px}
+  #mdbTrade .tb button{background:rgba(255,255,255,.18);color:#fff;border:0;border-radius:8px;padding:6px 10px;font:600 13px system-ui;cursor:pointer}
+  #mdbTrade .tb button.on{background:#fff;color:#0b7c8c}
+  #mdbTrade iframe{flex:1;border:0;width:100%;background:#0f172a}
   #mdb .hp details{border:1px solid #e2e8f0;border-radius:8px;margin:6px 0;background:#f8fafc}
   #mdb .hp summary{padding:7px 9px;font-weight:600;cursor:pointer;color:#0b7c8c}
   #mdb .hp details>div{padding:0 10px 8px}
@@ -314,7 +330,7 @@
    (“Trade when”) happens, it presses the trade button for you, with your stake, until a limit stops it.</p>
    <button class="vbtn" data-v="intro">▶ Watch: what this bot does (1:20)</button>
    <a class="all" href="https://isaacedwards-kawuma.github.io/digitbot/tutorials.html" target="_blank" rel="noopener">🎬 All tutorial videos on one page</a>
-   <a class="all" href="https://isaacedwards-kawuma.github.io/digitbot/" target="_blank" rel="noopener">🏠 DigitBot home: MMG · 💱 Forex · ₿ Crypto</a>
+   <p style="font-size:12px;color:#475569">🏠 in the green bar opens the Welcome screen: MMG digits, 💱 Forex or ₿ Crypto.</p>
    <details><summary>Auto or Manual?</summary><div><button class="vbtn" data-v="automanual">▶ Watch the video (0:55)</button><ul>
     <li><b>⚡ Auto</b>: pick a strategy, press <b>Start auto</b>. The bot trades by itself with the strategy's settings.</li>
     <li><b>✋ Manual</b>: you choose the button, digit, stake and limits. <b>Trade once now</b> places one trade at once;
@@ -420,7 +436,7 @@
   const box = document.createElement("div"); box.id = "mdb";
   const opt = (v, t) => `<option value="${v}">${t}</option>`;
   box.innerHTML = `
-  <div class="hd"><b>🤖 Digit Bot</b><span id="mdbBadge"></span><button id="mdbHelp" title="Help: how the bot works">?</button><button id="mdbMin">–</button><button id="mdbX">✕</button></div>
+  <div class="hd"><b>🤖 Digit Bot</b><span id="mdbBadge"></span><button id="mdbHome" title="Welcome: MMG, Forex or Crypto">🏠</button><button id="mdbHelp" title="Help: how the bot works">?</button><button id="mdbMin">–</button><button id="mdbX">✕</button></div>
   <div class="bd">
    <div class="tabs"><button id="tabAuto">⚡ Auto</button><button id="tabMan">✋ Manual</button><button id="tabStats">📊 Stats</button></div>
    <div class="g" id="pAuto">
@@ -494,11 +510,25 @@
    <div class="go"><button class="start" id="mdbStart">Start</button><button class="stop" id="mdbStop">Stop</button></div>
    <div class="log" id="mdbLog"></div>
   </div>
-  <div class="hp" id="mdbHelpBox">${HELP}</div>`;
+  <div class="hp" id="mdbHelpBox">${HELP}</div>
+  <div class="wl">
+   <h3>Welcome! What do you want to trade?</h3>
+   <div class="sub">Everything starts on DEMO / practice money.</div>
+   <button class="ch" id="wlMmg"><span class="ic">🎯</span><span><b>MMG digits</b><small>Trade Match/Differ, Over/Under, Even/Odd, Rise/Fall on this game</small></span></button>
+   <button class="ch" id="wlFx"><span class="ic">💱</span><span><b>Forex</b><small>EUR/USD, GBP/USD, gold: charts, signals, backtests, practice trading</small></span></button>
+   <button class="ch" id="wlCr"><span class="ic">₿</span><span><b>Crypto</b><small>Bitcoin, Ethereum and more: charts, signals, backtests, practice trading</small></span></button>
+   <label class="ck2"><input type="checkbox" id="wlShow"> Show this screen every time the bot opens</label>
+  </div>`;
+  // Forex / Crypto open in a big window on top of the game (the web app, same as the DigitBot website)
+  const TRADE_URL = "https://isaacedwards-kawuma.github.io/digitbot/trade.html?embed=1";
+  const tw = document.createElement("div"); tw.id = "mdbTrade";
+  tw.innerHTML = `<div class="tb"><b id="twTitle">Trading</b><button id="twHome">🏠 Welcome</button><button id="twFx">💱 Forex</button>
+    <button id="twCr">₿ Crypto</button><button id="twMmg">🎯 MMG bot</button><button id="twX">✕ Close</button></div><iframe id="twFrame" title="DigitBot trading"></iframe>`;
   const $ = id => box.querySelector("#" + id);
   function mount() {
     if (!document.body) return;
     if (!document.getElementById("mdb")) { document.head.appendChild(style); document.body.appendChild(box); }
+    if (!document.getElementById("mdbTrade")) document.body.appendChild(tw);
   }
   mount();
   setInterval(mount, 2000);   // the site is a single-page app: re-attach if it re-renders
@@ -600,9 +630,37 @@
   }
   $("mdbMin").onclick = () => setMin(!box.classList.contains("min"));
   if (UI.min) box.classList.add("min");
+  // ---- welcome screen: MMG digits / Forex / Crypto
+  const tq = id => tw.querySelector("#" + id);
+  function showWelcome(on) {
+    box.classList.toggle("welcome", on);
+    if (on) { box.classList.remove("help"); box.classList.remove("min"); }
+    placeBox();
+  }
+  function openTrade(kind) {
+    const f = tq("twFrame"), want = TRADE_URL + "#" + kind;
+    if (f.getAttribute("src") !== want) f.setAttribute("src", want);
+    tq("twTitle").textContent = kind === "forex" ? "💱 Forex" : "₿ Crypto";
+    tq("twFx").classList.toggle("on", kind === "forex"); tq("twCr").classList.toggle("on", kind === "crypto");
+    tw.classList.add("on"); setMin(true); box.classList.remove("welcome");
+    UI.last = kind; saveUI();
+  }
+  const closeTrade = () => tw.classList.remove("on");
+  $("wlShow").checked = UI.welcome !== false;
+  $("wlShow").onchange = () => { UI.welcome = $("wlShow").checked; saveUI(); };
+  $("wlMmg").onclick = () => { closeTrade(); showWelcome(false); UI.last = "mmg"; saveUI(); };
+  $("wlFx").onclick = () => openTrade("forex");
+  $("wlCr").onclick = () => openTrade("crypto");
+  $("mdbHome").onclick = () => { closeTrade(); showWelcome(!box.classList.contains("welcome")); };
+  tq("twFx").onclick = () => openTrade("forex");
+  tq("twCr").onclick = () => openTrade("crypto");
+  tq("twHome").onclick = () => { closeTrade(); setMin(false); showWelcome(true); };
+  tq("twMmg").onclick = () => { closeTrade(); setMin(false); showWelcome(false); };
+  tq("twX").onclick = () => { closeTrade(); setMin(false); };
+  if (UI.welcome !== false) { box.classList.remove("min"); box.classList.add("welcome"); }
   placeBox();
   addEventListener("resize", placeBox);
-  $("mdbHelp").onclick = () => { box.classList.remove("min"); box.classList.toggle("help"); $("mdbHelpBox").scrollTop = 0; };
+  $("mdbHelp").onclick = () => { box.classList.remove("min"); box.classList.remove("welcome"); box.classList.toggle("help"); $("mdbHelpBox").scrollTop = 0; };
   $("mdbBack").onclick = () => { box.classList.remove("help"); box.querySelectorAll(".hp video").forEach(v => v.pause()); };
   const VIDEOS = "https://isaacedwards-kawuma.github.io/digitbot/videos/";
   $("mdbHelpBox").addEventListener("click", e => {

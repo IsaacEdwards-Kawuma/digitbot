@@ -293,6 +293,7 @@
     const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([rows.map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n")], { type: "text/csv" }));
     a.download = `digitbot-${mode}-practice.csv`; document.body.appendChild(a); a.click(); a.remove();
   };
+  if (/embed=1/.test(location.search)) document.querySelector("header a").style.display = "none";   // inside the Digit Bot window
   setInterval(refreshLatest, 15000); setInterval(pollOtherPrices, 6000);
   setMode();
   window.__trade = { get B() { return B; }, get acct() { return acct; }, runBacktest, openTrade, managePositions, lastPrice, closedIdx, onNewBar, setAuto: a => { auto = a; } };
