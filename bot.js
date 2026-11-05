@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.1.0
+// @version      2.2.0
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -35,6 +35,49 @@
   const DEF = { button: "differ", pick: 0, duration: "5t", stakeSet: 1, autoSetup: true,
                 trigger: "0", inRow: 1, maxTrades: 10, maxMinutes: 20, cooldown: 2,
                 maxStake: 10, stopLoss: 20, takeProfit: 20, allowReal: false, live: false };
+  DEF.strategy = "custom";
+
+  // Ready-made strategies: picking one fills in every setting below (you can still change them).
+  // Safe defaults for all: $1 stake, stop-loss $10, take-profit $10, max stake $5, LIVE clicks on.
+  // Honest note: digits are random, so no strategy changes the odds - they only change how
+  // often you trade, how big the swings are and when you stop.
+  const SAFE = { stakeSet: 1, maxStake: 5, stopLoss: 10, takeProfit: 10, maxMinutes: 15, autoSetup: true, live: true };
+  const STRATEGIES = [
+    { id: "differ_after", group: "Match / Differ", name: "Differ – after its own digit",
+      desc: "When 7 shows, bet the next result is NOT 7. Wins ~9 in 10, but each win pays little and one loss costs about 10 wins.",
+      set: { button: "differ", pick: 7, trigger: "7", inRow: 1, maxTrades: 20, cooldown: 2 } },
+    { id: "differ_steady", group: "Match / Differ", name: "Differ – steady every tick",
+      desc: "Bets NOT 0 on every tick, with a 4 s pause between trades. Many small wins, a few bigger losses.",
+      set: { button: "differ", pick: 0, trigger: "any", inRow: 1, maxTrades: 15, cooldown: 4 } },
+    { id: "match_hot", group: "Match / Differ", name: "Match – hot digit (5 twice)",
+      desc: "When 5 shows twice in a row, bet the result IS 5. Wins ~1 in 10 but pays about 8x. Long losing runs are normal.",
+      set: { button: "match", pick: 5, trigger: "5", inRow: 2, maxTrades: 15, cooldown: 2 } },
+    { id: "over2", group: "Over / Under", name: "Over 2 – high win rate",
+      desc: "Bets the result is 3-9 (wins ~7 in 10), after any odd digit. Small wins, bigger losses.",
+      set: { button: "over", pick: 2, trigger: "odd", inRow: 1, maxTrades: 15, cooldown: 3 } },
+    { id: "under7", group: "Over / Under", name: "Under 7 – high win rate",
+      desc: "Bets the result is 0-6 (wins ~7 in 10), after any even digit. Small wins, bigger losses.",
+      set: { button: "under", pick: 7, trigger: "even", inRow: 1, maxTrades: 15, cooldown: 3 } },
+    { id: "over4_low", group: "Over / Under", name: "Over 4 – after 0 shows",
+      desc: "When 0 shows, bet the result is 5-9 (wins ~1 in 2, pays about 1x).",
+      set: { button: "over", pick: 4, trigger: "0", inRow: 1, maxTrades: 15, cooldown: 2 } },
+    { id: "even_after_odd", group: "Even / Odd", name: "Even – after 3 odd in a row",
+      desc: "Waits for 3 odd digits in a row, then bets Even. Wins ~1 in 2 (the streak does not really change the odds).",
+      set: { button: "even", trigger: "odd", inRow: 3, maxTrades: 15, cooldown: 2 } },
+    { id: "odd_after_even", group: "Even / Odd", name: "Odd – after 3 even in a row",
+      desc: "Waits for 3 even digits in a row, then bets Odd. Wins ~1 in 2 (the streak does not really change the odds).",
+      set: { button: "odd", trigger: "even", inRow: 3, maxTrades: 15, cooldown: 2 } },
+    { id: "even_steady", group: "Even / Odd", name: "Even – steady every tick",
+      desc: "Bets Even on every tick with a 5 s pause between trades. Wins ~1 in 2.",
+      set: { button: "even", trigger: "any", inRow: 1, maxTrades: 10, cooldown: 5 } },
+    { id: "rise_5t", group: "Rise / Fall", name: "Rise – 5 ticks, steady",
+      desc: "Bets the price is higher after 5 ticks, then waits 6 s before the next trade. Wins ~1 in 2.",
+      set: { button: "rise", duration: "5t", trigger: "any", inRow: 1, maxTrades: 10, cooldown: 6 } },
+    { id: "fall_5t", group: "Rise / Fall", name: "Fall – 5 ticks, steady",
+      desc: "Bets the price is lower after 5 ticks, then waits 6 s before the next trade. Wins ~1 in 2.",
+      set: { button: "fall", duration: "5t", trigger: "any", inRow: 1, maxTrades: 10, cooldown: 6 } },
+  ];
+  const strategyById = id => STRATEGIES.find(s => s.id === id);
   let S = Object.assign({}, DEF);
   try { Object.assign(S, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch (e) {}
   S.trigger = String(S.trigger);
@@ -245,7 +288,25 @@
   const HELP = `
    <p><b>What this bot does:</b> it watches the last digit of every price tick and, when your rule
    (“Trade when”) happens, it presses the trade button for you, with your stake, until a limit stops it.</p>
-   <details open><summary>Quick start (5 steps)</summary><div><ol>
+   <details open><summary>Easiest: pick a strategy</summary><div><ol>
+    <li>Open the game (Manual Trader) on <b>DEMO</b>.</li>
+    <li>In <b>Strategy</b> at the top, choose one. All settings are filled in for you
+        ($1 stake, stop-loss $10, take-profit $10, LIVE clicks on).</li>
+    <li>Press <b>Start</b>, check the summary and press OK. The bot sets up the game and trades by itself
+        until a limit is reached. <b>Stop</b> stops at once.</li>
+   </ol><p>Changing a setting afterwards switches to <b>Custom</b> (your own settings).</p></div></details>
+   <details><summary>The strategies</summary><div><ul>
+    <li><b>Differ – after its own digit</b>: when 7 shows, bet NOT 7. Wins ~9 in 10, small wins, one loss ≈ 10 wins.</li>
+    <li><b>Differ – steady every tick</b>: bets NOT 0 on every tick, 4 s apart.</li>
+    <li><b>Match – hot digit</b>: after 5 shows twice in a row, bet 5. Wins ~1 in 10, pays ~8x.</li>
+    <li><b>Over 2 / Under 7</b>: win ~7 in 10 each, small wins, bigger losses.</li>
+    <li><b>Over 4 – after 0 shows</b>: after a 0, bet the result is 5-9. Wins ~1 in 2.</li>
+    <li><b>Even after 3 odd / Odd after 3 even</b>: waits for a streak, then bets the other side. Wins ~1 in 2.</li>
+    <li><b>Even – steady every tick</b>: bets Even every 5 s.</li>
+    <li><b>Rise / Fall – 5 ticks</b>: bets the price is higher / lower after 5 ticks, 6 s apart.</li>
+   </ul><p><b>Honestly:</b> digits are random, so a streak or a “hot” digit does not change the next tick.
+   The strategies only change how often you trade and how big the swings are. All of them lose about 1% per trade on average.</p></div></details>
+   <details><summary>Quick start with your own settings</summary><div><ol>
     <li>In the game, open <b>Manual Trader</b> and make sure the account says <b>DEMO</b>.</li>
     <li><b>Button</b>: what to buy (e.g. Differ). Choose the <b>Pick digit</b> / Barrier / Duration if shown.</li>
     <li><b>Stake</b>: money per trade, e.g. <code>1</code>. Tick <b>Set up the game for me</b>.</li>
@@ -307,6 +368,12 @@
   <div class="hd"><b>🤖 Digit Bot</b><span id="mdbBadge"></span><button id="mdbHelp" title="Help: how the bot works">?</button><button id="mdbMin">–</button><button id="mdbX">✕</button></div>
   <div class="bd">
    <div class="g">
+    <div class="sec">Strategy</div>
+    <label style="grid-column:1/3">Pick a strategy (fills in all settings), then press Start
+     <select id="f_strategy"><option value="custom">Custom – my own settings</option>${
+      [...new Set(STRATEGIES.map(s => s.group))].map(g => `<optgroup label="${g}">` +
+        STRATEGIES.filter(s => s.group === g).map(s => opt(s.id, s.name)).join("") + "</optgroup>").join("")}</select></label>
+    <div class="odds" id="mdbStratDesc"></div>
     <div class="sec">Trade</div>
     <label>Button<select id="f_button">${BUTTONS.map(b => opt(b, b[0].toUpperCase() + b.slice(1))).join("")}</select></label>
     <label id="w_pick"><span id="l_pick">Pick digit</span><select id="f_pick">${[...Array(10).keys()].map(i => opt(i, i)).join("")}</select></label>
@@ -359,10 +426,30 @@
       }
       S[f] = el.type === "checkbox" ? el.checked : TEXT_FIELDS[f] ? el.value : parseFloat(el.value);
       if (f === "allowReal" && el.checked && !confirm("Allow trading on a REAL money account?\n\nThe bot cannot predict digits. Only use money you can afford to lose.")) { el.checked = false; S[f] = false; }
+      if (f !== "live" && f !== "allowReal") S.strategy = "custom";   // you changed a strategy's setting
       save(); refreshForm();
     });
   }
+  function fillForm() {
+    for (const f of FIELDS) { const el = $("f_" + f); if (el.type === "checkbox") el.checked = !!S[f]; else el.value = S[f]; }
+  }
+  $("f_strategy").addEventListener("change", () => {
+    const el = $("f_strategy");
+    if (running || busy) { log("Stop the bot before choosing another strategy.", "warn"); el.value = S.strategy; return; }
+    const st = strategyById(el.value);
+    S.strategy = el.value;
+    if (st) {
+      Object.assign(S, SAFE, st.set);
+      fillForm();
+      log(`strategy: ${st.name} - settings filled in. Check the account is DEMO, then press Start.`, "ok");
+    }
+    save(); refreshForm();
+  });
   function refreshForm() {
+    const st = strategyById(S.strategy);
+    $("f_strategy").value = st ? st.id : "custom";
+    $("mdbStratDesc").textContent = st ? st.desc + ` Stake $${S.stakeSet}, stop-loss $${S.stopLoss}, take-profit $${S.takeProfit}, max ${S.maxTrades} trades.`
+                                       : "Your own settings below. Pick a strategy to fill them in automatically.";
     const needsPick = !!NEEDS_PICK[S.button], rf = MODE[S.button] === "Rise/Fall";
     $("w_pick").style.display = needsPick ? "" : "none";
     $("l_pick").textContent = S.button === "over" || S.button === "under" ? "Barrier" : "Pick digit";
@@ -425,14 +512,15 @@
     if (b && b.disabled) { log(`${S.button.toUpperCase()} is unavailable right now.`, "warn"); return; }
     if (S.live) {
       const st = stake(), odds = oddsText().replace(/<[^>]+>/g, "");
-      const msg = `${demo ? "DEMO" : "⚠ REAL MONEY"} account\n${MODE_NAME[MODE[S.button]]}: press ${describe()}\n` +
+      const sn = strategyById(S.strategy);
+      const msg = `${demo ? "DEMO" : "⚠ REAL MONEY"} account\n${sn ? "Strategy: " + sn.name + "\n" : ""}${MODE_NAME[MODE[S.button]]}: press ${describe()}\n` +
                   `when ${triggerText()} shows ${S.inRow}x in a row\nStake: $${st == null ? "?" : st}   Max trades: ${S.maxTrades}\n` +
                   `Stop-loss $${S.stopLoss}  Take-profit $${S.takeProfit}\n${odds}\n\nStart?`;
       if (!confirm(msg)) return;
     }
     running = true; finishing = null; t0 = Date.now(); trades = 0; run = 0; startBal = balance(); lastTickAt = Date.now();
     $("mdbStart").disabled = true;
-    log(`START ${S.live ? "LIVE" : "WATCH-ONLY"}: ${describe()} on ${triggerText()} x${S.inRow}`, "ok");
+    log(`START ${S.live ? "LIVE" : "WATCH-ONLY"}${strategyById(S.strategy) ? " [" + strategyById(S.strategy).name + "]" : ""}: ${describe()} on ${triggerText()} x${S.inRow}`, "ok");
   }
   function stop(why) {
     if (!running) return;
