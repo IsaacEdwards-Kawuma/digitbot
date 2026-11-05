@@ -1,15 +1,13 @@
 // ==UserScript==
 // @name         DigitBot Screen Trader
 // @namespace    digitbot.local
-// @version      1.0.0
+// @version      1.0.2
 // @description  Reads the price on Binance, TradingView and MetaTrader 5 Web, finds signals with the DigitBot strategies, and clicks Buy / Sell / Close for you (with stop-loss and take-profit). Demo / paper accounts first.
-// @match        https://www.binance.com/*/futures/*
-// @match        https://www.binance.com/futures/*
-// @match        https://www.binance.com/*/trade/*
+// @match        https://www.binance.com/*
 // @match        https://demo.binance.com/*
 // @match        https://testnet.binancefuture.com/*
-// @match        https://www.tradingview.com/chart*
-// @match        https://*.tradingview.com/chart*
+// @match        https://www.tradingview.com/*
+// @match        https://*.tradingview.com/*
 // @match        https://web.metatrader.app/*
 // @match        https://trade.mql5.com/*
 // @require      https://isaacedwards-kawuma.github.io/digitbot/engine.js
@@ -32,7 +30,7 @@
   "use strict";
   if (window.top !== window.self || document.getElementById("dbst")) return;
   const E = (typeof Engine !== "undefined" && Engine) || window.Engine;
-  const VER = "1.0.0";
+  const VER = "1.0.2";
 
   // ---------------------------------------------------------------- storage (per site)
   const HOST = location.hostname.replace(/^www\./, "");
@@ -359,6 +357,22 @@
 #dbst td:last-child{white-space:nowrap;text-align:right}#dbst .tb{background:#334155;color:#fff;border:0;border-radius:6px;padding:2px 7px;cursor:pointer;font-size:11px}#dbst.min .b{display:none}`;
   document.head.appendChild(st);
   const P = document.createElement("div"); P.id = "dbst"; document.body.appendChild(P);
+  // the bot loads on every page of the site but only shows on a trading/chart page (sites change pages without reloading)
+  const onTradePage = () => SITE === SITES.binance ? /\/(futures|trade)\//.test(location.pathname) || /demo|testnet/.test(HOST)
+                           : SITE === SITES.tradingview ? /\/chart/.test(location.pathname) : true;
+  const POS = gget("pos." + HOST, null);
+  if (POS) { P.style.left = POS.x + "px"; P.style.top = POS.y + "px"; P.style.right = "auto"; }
+  function homePanel() { P.style.left = ""; P.style.right = "14px"; P.style.top = "70px"; gset("pos." + HOST, null); }
+  function keepPanel() {                                     // never lose the panel
+    if (!st.isConnected) (document.head || document.documentElement).appendChild(st);
+    const fs = document.fullscreenElement, host = fs && fs.tagName !== "VIDEO" && fs.tagName !== "IFRAME" ? fs : document.body;
+    if (!P.isConnected || P.parentElement !== host) host.appendChild(P);       // follow the chart into full screen
+    P.style.display = onTradePage() ? "" : "none";
+    const r = P.getBoundingClientRect();
+    if (P.style.display !== "none" && (r.right < 60 || r.left > innerWidth - 60 || r.top > innerHeight - 30 || r.top < -10)) homePanel();
+  }
+  document.addEventListener("fullscreenchange", () => setTimeout(keepPanel, 50));
+  document.addEventListener("keydown", e => { if (e.altKey && e.shiftKey && (e.key === "D" || e.key === "d")) { homePanel(); P.classList.remove("min"); keepPanel(); render(); log("panel brought back (Alt+Shift+D)"); } }, true);
   let tab = "auto", logs = [];
   function log(m) { const l = new Date().toTimeString().slice(0, 8) + " " + m; logs.push(l); logs = logs.slice(-120); console.log("[DigitBot Screen]", m); const L = P.querySelector(".log"); if (L) { L.innerHTML = logs.map(x => `<div>${esc(x)}</div>`).join(""); L.scrollTop = 1e9; } }
   const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
@@ -406,10 +420,12 @@
       <label>Break-even at (R, 0 = off)<input type="number" step="0.5" data-s="be" value="${S.be}"></label>
       <label>Trail (× ATR, 0 = off)<input type="number" step="0.5" data-s="trail" value="${S.trail}"></label>
       <label>Max leverage<select data-s="maxLev">${[1, 2, 3].map(v => `<option ${+S.maxLev === v ? "selected" : ""}>${v}</option>`).join("")}</select></label>
-      <div class="note">Version ${VER}. Settings are saved for ${esc(HOST)}.</div>`;
+      <div class="row"><button data-a="restart">↻ Restart the bot</button><button data-a="forget">Forget the bot's trade</button></div>
+      <div class="row"><button data-a="wipe">Reset everything for this site</button></div>
+      <div class="note">Version ${VER}. Settings are saved for ${esc(HOST)}. "Forget the bot's trade" only clears the bot's memory - close any real position on the platform yourself.</div>`;
     else if (tab === "hist") body = `<table><tr><td>closed</td><td>side</td><td>result</td><td>why</td></tr>${ST.hist.slice(-25).reverse().map(h => `<tr><td>${new Date(h.exitT).toLocaleTimeString()}</td><td>${h.side}</td><td class="${h.plEst >= 0 ? "ok" : "bad"}">${h.plEst.toFixed(2)}${h.practice ? " (p)" : ""}</td><td>${esc(h.reason)}</td></tr>`).join("") || `<tr><td colspan="4">No trades yet.</td></tr>`}</table>
       <div class="note">Results are estimated from the screen price; the platform's own history is the true record.</div>`;
-    P.innerHTML = `<div class="h"><span>🖱️ DigitBot Screen Trader</span><button data-a="min">${P.classList.contains("min") ? "▢" : "–"}</button></div>
+    P.innerHTML = `<div class="h"><span>🖱️ DigitBot Screen Trader</span><button data-a="restart" title="Restart: stop auto, re-find the buttons, reload the prices">↻</button><button data-a="min">${P.classList.contains("min") ? "▢" : "–"}</button></div>
       <div class="b">${head}${warn}<div class="tabs">${[["auto", "🤖 Auto"], ["manual", "✋ Manual"], ["setup", "🎯 Setup"], ["set", "⚙️ Settings"], ["hist", "📜"]].map(([k, l]) => `<button data-tab="${k}" class="${k === tab ? "on" : ""}">${l}</button>`).join("")}</div>
       ${body}<div class="log">${logs.map(x => `<div>${esc(x)}</div>`).join("")}</div>
       <div class="note">Nothing here is financial advice. Most traders lose money; test on demo/paper for weeks first.</div></div>`;
@@ -427,6 +443,10 @@
     const t = e.target, a = t.dataset.a;
     if (t.dataset.tab) { tab = t.dataset.tab; render(); return; }
     if (a === "min") { P.classList.toggle("min"); render(); return; }
+    if (a === "restart") { restart(); return; }
+    if (a === "forget") { if (ST.pos && confirm("Forget the bot's open trade? (It does NOT close anything on the platform.)")) { ST.pos = null; saveST(); log("the bot forgot its trade"); render(); } return; }
+    if (a === "wipe") { if (confirm("Reset settings, taught buttons and history for " + HOST + "? Practice clicks will be ON again.")) {
+      S = Object.assign({}, DEF); TEACH = {}; ST = { pos: null, hist: [] }; saveS(); gset("teach." + HOST, TEACH); saveST(); log("everything reset for " + HOST); restart(); } return; }
     if (a === "auto") { auto ? stopAuto() : startAuto(); return; }
     if (a === "buy" || a === "sell") { if (confirm(`${a.toUpperCase()} ${symbol()} now${S.practice ? " (practice clicks)" : ""}?`)) enter(a, null, "manual " + a); return; }
     if (a === "close") { if (ST.pos && confirm("Close the bot's trade now?")) exitPos("closed by you"); else if (!ST.pos) log("the bot has no open trade"); return; }
@@ -458,12 +478,18 @@
     let sx, sy, ox, oy, on = false;
     P.addEventListener("mousedown", e => { if (!e.target.closest(".h") || e.target.tagName === "BUTTON") return; on = true; sx = e.clientX; sy = e.clientY; const r = P.getBoundingClientRect(); ox = r.left; oy = r.top; e.preventDefault(); });
     document.addEventListener("mousemove", e => { if (!on) return; P.style.left = ox + e.clientX - sx + "px"; P.style.top = Math.max(0, oy + e.clientY - sy) + "px"; P.style.right = "auto"; });
-    document.addEventListener("mouseup", () => { on = false; });
+    document.addEventListener("mouseup", () => { if (on) { const r = P.getBoundingClientRect(); gset("pos." + HOST, { x: Math.round(r.left), y: Math.round(r.top) }); } on = false; });
   })();
 
   // ---------------------------------------------------------------- main loop
+  function restart() {
+    auto = null; busy = false; histKey = ""; lastSym = ""; lastClosed = 0; px = NaN; ratio = 1;
+    document.querySelectorAll("div[style*='2147483646']").forEach(e => e.remove());
+    log("↻ restarted: auto is off, buttons and prices are read again"); render();
+  }
   let lastSym = "", lastRender = 0;
   async function tick() {
+    keepPanel(); if (!onTradePage()) return;
     const p = readPrice(); if (p > 0) { px = p; pxT = Date.now(); }
     const s = symbol();
     if (s && s !== lastSym) { lastSym = s; if (auto) stopAuto("the market changed"); loadHistory(true).catch(e => log("could not load history: " + (e.message || e))); }
@@ -476,5 +502,6 @@
   log(`ready on ${SITE.name}. Start in Setup: press "Test all" and check the yellow highlights.`);
   if (ST.pos) log(`the bot remembers an open ${ST.pos.side} on ${ST.pos.sym} - it keeps watching its stop`);
   setInterval(() => tick().catch(e => console.error(e)), 1000);
-  window.__dbst = { el, S, ST, enter, exitPos, get px() { return px; }, get B() { return B; }, startAuto, stopAuto, TEACH, resolve, describe, render, setTab: t => { tab = t; render(); } };
+  window.__dbst = { el, get S() { return S; }, get ST() { return ST; }, get TEACH() { return TEACH; }, enter, exitPos, get px() { return px; }, get B() { return B; },
+                    startAuto, stopAuto, resolve, describe, render, keepPanel, setTab: t => { tab = t; render(); } };
 })();
