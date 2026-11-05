@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.0.0
+// @version      2.1.0
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -232,13 +232,79 @@
   #mdb .log{margin-top:6px;font:11px ui-monospace,monospace;max-height:110px;overflow:auto;background:#0f172a;color:#e2e8f0;border-radius:6px;padding:5px}
   #mdb .warn{color:#b91c1c;font-weight:600} #mdb .ok{color:#15803d;font-weight:600}
   #mdb .log .warn{color:#fca5a5} #mdb .log .ok{color:#86efac}
-  #mdb.min .bd{display:none} #mdb.min{width:auto}
+  #mdb.min .bd,#mdb.min .hp{display:none!important} #mdb.min{width:auto}
+  #mdb .hp{display:none;padding:8px 10px;max-height:75vh;overflow:auto;font-size:13px}
+  #mdb.help .bd{display:none} #mdb.help .hp{display:block}
+  #mdb .hp details{border:1px solid #e2e8f0;border-radius:8px;margin:6px 0;background:#f8fafc}
+  #mdb .hp summary{padding:7px 9px;font-weight:600;cursor:pointer;color:#0b7c8c}
+  #mdb .hp details>div{padding:0 10px 8px}
+  #mdb .hp ol,#mdb .hp ul{margin:4px 0;padding-left:18px} #mdb .hp li{margin:3px 0}
+  #mdb .hp p{margin:4px 0} #mdb .hp code{background:#e2e8f0;border-radius:4px;padding:0 3px;font-size:12px}
+  #mdb .hp .back{width:100%;margin-top:8px;padding:10px;border:0;border-radius:8px;background:#0b7c8c;color:#fff;font-size:15px;font-weight:600}
   `;
+  const HELP = `
+   <p><b>What this bot does:</b> it watches the last digit of every price tick and, when your rule
+   (“Trade when”) happens, it presses the trade button for you, with your stake, until a limit stops it.</p>
+   <details open><summary>Quick start (5 steps)</summary><div><ol>
+    <li>In the game, open <b>Manual Trader</b> and make sure the account says <b>DEMO</b>.</li>
+    <li><b>Button</b>: what to buy (e.g. Differ). Choose the <b>Pick digit</b> / Barrier / Duration if shown.</li>
+    <li><b>Stake</b>: money per trade, e.g. <code>1</code>. Tick <b>Set up the game for me</b>.</li>
+    <li><b>Trade when</b>: e.g. <code>digit 7</code>, <b>Times in a row</b> <code>1</code>. Set the limits (below).</li>
+    <li>Press <b>Start</b> without “LIVE clicks” first: it only shows what it <i>would</i> do.
+        Happy? Tick <b>LIVE clicks</b> and press Start again. <b>Stop</b> stops at once.</li>
+   </ol></div></details>
+   <details><summary>How the bot plays, step by step</summary><div><ol>
+    <li>Checks the account (refuses REAL unless “Allow REAL”), that there are no open trades and that it can read the page.</li>
+    <li>If “Set up the game for me” is ticked, it selects the game mode, digit/barrier/duration and types the stake. If you change them in the game, it changes them back.</li>
+    <li>Every tick it reads the new last digit (shown in the digits row).</li>
+    <li>If the digit matches “Trade when” for “Times in a row” ticks, it does the safety checks: stake ≤ max stake, and <i>losing this trade would not go past the stop-loss</i>.</li>
+    <li>Then it clicks the button (LIVE) or just writes “would click” (not LIVE), and waits the cooldown.</li>
+    <li>A contract settles a few ticks later; balance and P/L update.</li>
+    <li>It stops by itself at: max trades, max minutes, stop-loss, take-profit, a frozen chart or a changed page.</li>
+   </ol></div></details>
+   <details><summary>The buttons (what you win on)</summary><div><ul>
+    <li><b>Differ</b>: wins if the final digit is <i>not</i> your pick (~9 in 10), but pays very little.</li>
+    <li><b>Match</b>: wins only if the final digit <i>is</i> your pick (~1 in 10), pays a lot.</li>
+    <li><b>Over / Under</b>: final digit above / below the Barrier.</li>
+    <li><b>Even / Odd</b>: final digit even / odd (~1 in 2).</li>
+    <li><b>Rise / Fall</b>: price higher / lower after the Duration (5t = 5 ticks).</li>
+   </ul><p>The grey line under Stake shows the win chance, the payout and the expected result per trade.</p></div></details>
+   <details><summary>Every setting explained</summary><div><ul>
+    <li><b>Trade when</b>: the digit that starts a trade: a digit 0-9, any even, any odd, or every tick.</li>
+    <li><b>Times in a row</b>: how many ticks in a row must match first (1 = straight away).</li>
+    <li><b>Max trades</b>: stop after this many trades.</li>
+    <li><b>Max minutes</b>: stop after this much time.</li>
+    <li><b>Stop-loss ($)</b>: stop when you are this much down. It also <b>skips any trade whose loss would go past it</b>, so it must be at least as big as the Stake.</li>
+    <li><b>Take-profit ($)</b>: stop when you are this much up.</li>
+    <li><b>Max stake ($)</b>: refuses to trade if the game stake is higher (catches a stake that jumped).</li>
+    <li><b>Cooldown (s)</b>: seconds to wait after each trade.</li>
+    <li><b>LIVE clicks</b>: off = practice (no clicks), on = really trades.</li>
+    <li><b>Allow REAL</b>: needed to trade a real-money account. Leave it off.</li>
+   </ul></div></details>
+   <details><summary>Messages and problems</summary><div><ul>
+    <li><b>“skipped - … past the $X stop-loss”</b>: losing this trade would cost more than the stop-loss allows. Lower the <b>Stake</b> or raise the <b>Stop-loss</b>.</li>
+    <li><b>“stake is above your max stake”</b>: raise Max stake or lower the stake in the game.</li>
+    <li><b>“This is a REAL account”</b>: switch the game to DEMO (or tick Allow REAL).</li>
+    <li><b>“Can't find the digit circles / price”</b>: open the Manual Trader page, then press Start.</li>
+    <li><b>“Wait until your open trades have finished”</b>: wait for the Open (N) trades to settle.</li>
+    <li>Panel gone? Tap the Digit Bot bookmark again. Drag it by the green bar; “–” makes it small.</li>
+   </ul></div></details>
+   <details><summary>Example setups</summary><div><ul>
+    <li><b>First test</b>: Differ, pick 7, stake 1, every tick, max trades 1, stop-loss 10, max stake 1, LIVE on.</li>
+    <li><b>Wait for a digit</b>: Differ, pick 5, Trade when “digit 5”, 2 in a row, max trades 10, stop-loss 10.</li>
+    <li><b>Even/Odd</b>: Even, stake 1, Trade when “any odd digit”, 3 in a row, stop-loss 5, take-profit 5.</li>
+   </ul></div></details>
+   <details><summary>Honest truth about winning</summary><div>
+    <p>Every tick is random: past digits do not change the next one, so no rule or bot can predict it.
+    Every option on this site pays slightly less than its fair odds, about <b>-1% per trade</b> on average.
+    Differ wins ~9 of 10, but one loss wipes out ~10 wins. Practise on DEMO, always use a stop-loss,
+    and never trade money you need.</p></div></details>
+   <button class="back" id="mdbBack">← Back to the bot</button>`;
   const style = document.createElement("style"); style.textContent = css;
   const box = document.createElement("div"); box.id = "mdb";
   const opt = (v, t) => `<option value="${v}">${t}</option>`;
   box.innerHTML = `
-  <div class="hd"><b>🤖 Digit Bot</b><span id="mdbBadge"></span><button id="mdbMin">–</button><button id="mdbX">✕</button></div>
+  <div class="hd"><b>🤖 Digit Bot</b><span id="mdbBadge"></span><button id="mdbHelp" title="Help: how the bot works">?</button><button id="mdbMin">–</button><button id="mdbX">✕</button></div>
   <div class="bd">
    <div class="g">
     <div class="sec">Trade</div>
@@ -269,7 +335,8 @@
    </div>
    <div class="go"><button class="start" id="mdbStart">Start</button><button class="stop" id="mdbStop">Stop</button></div>
    <div class="log" id="mdbLog"></div>
-  </div>`;
+  </div>
+  <div class="hp" id="mdbHelpBox">${HELP}</div>`;
   const $ = id => box.querySelector("#" + id);
   function mount() {
     if (!document.body) return;
@@ -303,6 +370,8 @@
   }
   refreshForm();
   $("mdbMin").onclick = () => box.classList.toggle("min");
+  $("mdbHelp").onclick = () => { box.classList.remove("min"); box.classList.toggle("help"); $("mdbHelpBox").scrollTop = 0; };
+  $("mdbBack").onclick = () => box.classList.remove("help");
   $("mdbX").onclick = () => { stop("panel closed"); box.style.display = "none"; };
 
   // drag the panel by its header (mouse + touch)
@@ -407,7 +476,8 @@
       if (!isDemo() && !S.allowReal) { stop("account is not DEMO"); return; }
       // Pessimistic check (open stakes already taken out): never go past the stop-loss.
       if (S.stopLoss > 0 && bal != null && startBal - (bal - st) > S.stopLoss) {
-        log(`digit ${d}: skipped - this trade could take you past the $${S.stopLoss} stop-loss`); return;
+        log(`digit ${d}: skipped - losing this $${st} stake could take you past the $${S.stopLoss} stop-loss ` +
+            `(lower the Stake or raise the Stop-loss - see ? help)`); return;
       }
       b.click();
       lastClick = Date.now(); trades++;
