@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DigitBot – trading</title>
+<style>
+  :root { --bg:#0f172a; --card:#1e293b; --line:#334155; --tx:#e2e8f0; --mut:#94a3b8; --acc:#0ea5b7; --up:#22c55e; --dn:#ef4444; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--tx); font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 10px 12px 40px; }
+  header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+  header a { color: var(--mut); text-decoration: none; }
+  header h1 { font-size: 1.3rem; margin: 0; flex: 1; }
+  .sw { display: flex; gap: 4px; } .sw a { padding: 6px 12px; border-radius: 8px; background: var(--card); color: var(--tx); font-weight: 600; }
+  .sw a.on { background: var(--acc); }
+  .bar { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; margin-bottom: 8px; }
+  label { display: flex; flex-direction: column; font-size: 11px; color: var(--mut); gap: 2px; }
+  select, input { background: #0b1220; color: var(--tx); border: 1px solid var(--line); border-radius: 8px; padding: 7px 8px; font-size: 14px; }
+  input[type=number] { width: 90px; } input[type=checkbox] { width: 18px; height: 18px; }
+  button { background: var(--card); color: var(--tx); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; font-size: 14px; font-weight: 600; cursor: pointer; }
+  button.pri { background: var(--acc); border-color: var(--acc); } button.buy { background: #15803d; border-color: #15803d; }
+  button.sell { background: #b91c1c; border-color: #b91c1c; } button:disabled { opacity: .5; }
+  .price { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; margin: 4px 0 6px; }
+  .price b { font: 700 1.6rem ui-monospace, monospace; } .up { color: var(--up); } .dn { color: var(--dn); } .mut { color: var(--mut); }
+  .chart { position: relative; background: #0b1220; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+  canvas { display: block; width: 100%; }
+  .tabs { display: flex; gap: 4px; margin: 10px 0 0; flex-wrap: wrap; }
+  .tabs button { border-radius: 8px 8px 0 0; border-bottom: 0; } .tabs button.on { background: var(--acc); border-color: var(--acc); }
+  .pane { background: var(--card); border: 1px solid var(--line); border-radius: 0 12px 12px 12px; padding: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 10px; }
+  .box { background: #0b1220; border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+  .box h3 { margin: 0 0 4px; font-size: .95rem; }
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 6px; font-size: 12px; font-weight: 700; }
+  .tag.buy { background: #14532d; color: #86efac; } .tag.sell { background: #7f1d1d; color: #fca5a5; } .tag.none { background: #334155; color: var(--mut); }
+  .tag.pass { background: #14532d; color: #86efac; } .tag.fail { background: #3f1d1d; color: #fca5a5; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; } th, td { padding: 5px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; } th { color: var(--mut); font-weight: 600; }
+  .scroll { overflow-x: auto; }
+  .note { color: var(--mut); font-size: 12.5px; margin-top: 8px; }
+  .warn { background: #292117; border: 1px solid #b45309; border-radius: 10px; padding: 10px; margin-top: 10px; color: #fcd34d; font-size: 13px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; }
+  .kpi { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 6px; margin-bottom: 10px; }
+  .kpi div { background: #0b1220; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 11px; color: var(--mut); }
+  .kpi b { display: block; font-size: 16px; color: var(--tx); }
+  #log { background: #020617; border-radius: 8px; padding: 8px; font: 12px ui-monospace, monospace; max-height: 170px; overflow: auto; margin-top: 10px; }
+  .hide { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a href="./">← Home</a>
+    <h1 id="title">Trading</h1>
+    <div class="sw"><a href="#forex" id="swForex">💱 Forex</a><a href="#crypto" id="swCrypto">₿ Crypto</a></div>
+  </header>
+
+  <div class="bar">
+    <label>Market<select id="sym"></select></label>
+    <label>Timeframe<select id="tf"><option value="15m">M15 (15 min)</option><option value="1h" selected>H1 (1 hour)</option>
+      <option value="4h">H4 (4 hours)</option><option value="1d">D1 (1 day)</option></select></label>
+    <label>Show<select id="zoom"><option>80</option><option selected>150</option><option>300</option></select></label>
+    <button id="reload">↻ Refresh</button>
+  </div>
+  <div class="price"><b id="px">…</b><span id="chg"></span><span id="bias"></span><span class="mut" id="src"></span></div>
+  <div class="chart"><canvas id="cv" height="330"></canvas></div>
+
+  <div class="tabs">
+    <button data-t="sig" class="on">📈 Signals</button><button data-t="bt">🧪 Backtest</button>
+    <button data-t="pt">🤖 Practice trading</button><button data-t="help">❓ Help</button>
+  </div>
+
+  <!-- ===================== Signals -->
+  <div class="pane" id="t_sig">
+    <div class="box" style="margin-bottom:10px"><h3>Market reading</h3><div id="view"></div></div>
+    <div class="grid" id="sigs"></div>
+    <div class="box" style="margin-top:10px"><h3>Position size calculator</h3>
+      <div class="row">
+        <label>Account ($)<input type="number" id="calcBal" value="1000"></label>
+        <label>Risk per trade (%)<input type="number" id="calcRisk" value="1" step="0.1"></label>
+        <label>Stop distance<select id="calcSl"><option value="1.5">1.5 × ATR (default)</option><option value="1">1 × ATR</option><option value="2">2 × ATR</option></select></label>
+      </div>
+      <div id="calcOut" class="note"></div>
+    </div>
+  </div>
+
+  <!-- ===================== Backtest -->
+  <div class="pane hide" id="t_bt">
+    <div class="row">
+      <label>Stop (× ATR)<input type="number" id="btSl" value="1.5" step="0.1"></label>
+      <label>Target (× stop)<input type="number" id="btRr" value="2" step="0.1"></label>
+      <label>Break-even at (R)<input type="number" id="btBe" value="1" step="0.5"></label>
+      <label>Costs per trade (%)<input type="number" id="btCost" value="0.1" step="0.01"></label>
+      <label>Risk per trade (%)<input type="number" id="btRisk" value="1" step="0.1"></label>
+      <label style="flex-direction:row;align-items:center;gap:6px;color:var(--tx)"><input type="checkbox" id="btLong">Buy only (spot)</label>
+      <button class="pri" id="btRun">Run backtest</button>
+    </div>
+    <div class="note">Uses up to 3000 bars of history. TRAIN = older 70%, TEST = newest 30% (the strategy never "saw" it).
+      <b>PASS</b> = profitable on both, with enough trades. Entry at the next bar's open; if stop and target are inside one bar, the stop counts.</div>
+    <div class="scroll" style="margin-top:8px"><table id="btTable"></table></div>
+    <div class="chart" style="margin-top:10px"><canvas id="eq" height="200"></canvas></div>
+    <div id="btVerdict" class="note"></div>
+  </div>
+
+  <!-- ===================== Practice trading -->
+  <div class="pane hide" id="t_pt">
+    <div class="kpi" id="ptKpi"></div>
+    <div class="grid">
+      <div class="box"><h3>🤖 Auto trading</h3>
+        <div class="row">
+          <label>Strategy<select id="ptStrat"></select></label>
+          <label>Risk per trade (%)<input type="number" id="ptRisk" value="1" step="0.1" min="0.1" max="5"></label>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <label>Max daily loss (%)<input type="number" id="ptDay" value="3" step="0.5"></label>
+          <label>Max open trades<input type="number" id="ptOpen" value="2" min="1"></label>
+          <label>Max trades / day<input type="number" id="ptMaxDay" value="6" min="1"></label>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <label>Trail stop (× ATR, 0 = off)<input type="number" id="ptTrail" value="2" step="0.5"></label>
+          <label style="flex-direction:row;align-items:center;gap:6px;color:var(--tx)"><input type="checkbox" id="ptLong">Buy only</label>
+        </div>
+        <div class="row" style="margin-top:8px"><button class="pri" id="ptStart">▶ Start auto</button><button id="ptStop">■ Stop</button></div>
+        <div class="note" id="ptState">Auto is off.</div>
+      </div>
+      <div class="box"><h3>✋ Manual trade</h3>
+        <div class="note" style="margin-top:0">Uses the same stop (1.5 × ATR), target (2 × stop) and risk-based size.</div>
+        <div class="row" style="margin-top:8px"><button class="buy" id="ptBuy">BUY</button><button class="sell" id="ptSell">SELL</button></div>
+        <div class="note" id="ptPreview"></div>
+      </div>
+    </div>
+    <h3 style="margin:14px 0 4px">Open trades</h3><div class="scroll"><table id="ptPos"></table></div>
+    <h3 style="margin:14px 0 4px">History</h3><div class="scroll"><table id="ptHist"></table></div>
+    <div class="row" style="margin-top:10px"><button id="ptCsv">Download history (CSV)</button><button id="ptReset">Reset practice account</button></div>
+    <div id="log"></div>
+    <div class="note">Practice money only ($10,000 to start). Auto trading works while this page is open; for real trading use the PC app.</div>
+  </div>
+
+  <!-- ===================== Help -->
+  <div class="pane hide" id="t_help">
+    <div class="box"><h3>How to use it</h3><ol>
+      <li><b>Pick a market and timeframe.</b> The chart shows candles with EMA20 (yellow), EMA50 (blue) and EMA200 (purple).</li>
+      <li><b>📈 Signals</b> shows the market reading and the latest signal of each strategy, with its stop-loss and take-profit.</li>
+      <li><b>🧪 Backtest</b> tests all 5 strategies on history. Only consider a strategy that says <b>PASS</b> on this market and timeframe.</li>
+      <li><b>🤖 Practice trading</b>: start auto trading with a PASS strategy, or trade by hand, with $10,000 practice money.
+        Practise for weeks (50+ trades) and compare with the backtest before you think about real money.</li>
+      <li><b>Real trading</b>: the DigitBot PC app trades forex through MetaTrader 5 and crypto through Binance (testnet first), with the same strategies and limits.</li>
+    </ol></div>
+    <div class="box" style="margin-top:10px"><h3>The 5 strategies</h3><div id="stratHelp"></div></div>
+    <div class="box" style="margin-top:10px"><h3>Words</h3><ul>
+      <li><b>ATR</b>: the average size of a bar; stops are set in ATRs so they fit how much the market moves.</li>
+      <li><b>R</b>: the amount you risk on a trade. +2R = won twice what you risked.</li>
+      <li><b>PF (profit factor)</b>: money won ÷ money lost. Above 1 = profitable.</li>
+      <li><b>Max DD</b>: the worst fall from a peak, in %.</li>
+      <li><b>Break-even</b>: once a trade is +1R, the stop moves to the entry price.</li>
+      <li><b>Trailing stop</b>: after break-even the stop follows the price at a distance of 2 × ATR.</li>
+    </ul></div>
+    <div class="warn"><b>Honest notes:</b> a signal is a reading of the chart, not a promise. Backtests use past data; the future can differ.
+      Forex prices on this page come from Binance pairs that follow the real rates (EUR/USDT ≈ EUR/USD, PAXG ≈ gold); your broker's prices differ slightly.
+      Most retail traders lose money, and leverage makes losses fast. Never trade money you need.</div>
+  </div>
+  <div class="warn">Practice and analysis only on this page. Nothing here is financial advice.</div>
+</div>
+<script src="engine.js"></script>
+<script src="trade.js"></script>
+</body>
+</html>

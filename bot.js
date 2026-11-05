@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.8.0
+// @version      2.8.1
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -314,6 +314,7 @@
    (“Trade when”) happens, it presses the trade button for you, with your stake, until a limit stops it.</p>
    <button class="vbtn" data-v="intro">▶ Watch: what this bot does (1:20)</button>
    <a class="all" href="https://isaacedwards-kawuma.github.io/digitbot/tutorials.html" target="_blank" rel="noopener">🎬 All tutorial videos on one page</a>
+   <a class="all" href="https://isaacedwards-kawuma.github.io/digitbot/" target="_blank" rel="noopener">🏠 DigitBot home: MMG · 💱 Forex · ₿ Crypto</a>
    <details><summary>Auto or Manual?</summary><div><button class="vbtn" data-v="automanual">▶ Watch the video (0:55)</button><ul>
     <li><b>⚡ Auto</b>: pick a strategy, press <b>Start auto</b>. The bot trades by itself with the strategy's settings.</li>
     <li><b>✋ Manual</b>: you choose the button, digit, stake and limits. <b>Trade once now</b> places one trade at once;

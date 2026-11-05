@@ -3,105 +3,65 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Digit Bot – install</title>
+<title>DigitBot – welcome</title>
 <style>
-  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; max-width: 640px; margin: 0 auto; padding: 16px; line-height: 1.5; color: #1a1a1a; background: #fafafa; }
-  h1 { font-size: 1.5rem; margin-bottom: 4px; }
-  h2 { font-size: 1.1rem; margin-top: 28px; }
-  .card { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: 14px 16px; margin: 12px 0; }
-  textarea { width: 100%; box-sizing: border-box; height: 110px; font: 12px/1.4 monospace; padding: 8px; border-radius: 6px; border: 1px solid #bbb; }
-  button { font-size: 1rem; padding: 10px 18px; border-radius: 8px; border: 0; background: #2563eb; color: #fff; cursor: pointer; margin-top: 8px; }
-  #ok { color: #15803d; font-weight: 600; margin-left: 8px; }
-  a.drag { display: inline-block; padding: 10px 18px; background: #16a34a; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600; }
-  ol { padding-left: 20px; } li { margin: 4px 0; }
-  .warn { background: #fff7ed; border-color: #fdba74; }
-  small { color: #555; }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; line-height: 1.5; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 22px 16px 40px; }
+  h1 { font-size: 1.9rem; margin: 6px 0 2px; color: #fff; }
+  .sub { color: #94a3b8; margin-bottom: 22px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 16px; }
+  a.card { display: block; text-decoration: none; color: inherit; background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 18px; transition: transform .12s, border-color .12s; }
+  a.card:hover { transform: translateY(-2px); border-color: #0ea5b7; }
+  .ic { font-size: 2.2rem; }
+  .card h2 { margin: 6px 0 4px; font-size: 1.25rem; color: #fff; }
+  .card p { margin: 0 0 10px; color: #cbd5e1; font-size: .95rem; }
+  .card ul { margin: 0; padding-left: 18px; color: #94a3b8; font-size: .88rem; }
+  .go { display: inline-block; margin-top: 12px; background: #0ea5b7; color: #fff; border-radius: 10px; padding: 8px 14px; font-weight: 700; }
+  .box { background: #1e293b; border: 1px solid #334155; border-radius: 14px; padding: 14px 16px; margin-top: 18px; color: #cbd5e1; font-size: .93rem; }
+  .warn { border-color: #b45309; background: #292117; }
+  a { color: #38bdf8; }
 </style>
 </head>
 <body>
-<h1>Digit Bot</h1>
-<small>Works on PC, Android and iPhone/iPad. Add the bookmark once; updates arrive automatically.</small>
-<div class="card" style="margin-top:12px"><b>🎬 New here?</b> Watch the <a href="tutorials.html">tutorial videos</a> (1 minute each).</div>
+<div class="wrap">
+  <h1>🤖 DigitBot</h1>
+  <div class="sub">Choose what you want the bot to trade. Everything starts on DEMO / practice money.</div>
 
-<div class="card">
-  <b>1. Copy the bookmark code</b>
-  <textarea id="code" readonly></textarea>
-  <button id="copy">Copy</button><span id="ok"></span>
+  <div class="grid">
+    <a class="card" href="mmg.html">
+      <div class="ic">🎯</div>
+      <h2>MMG digits</h2>
+      <p>The Digit Bot for mmgpredictions.com: it runs inside the game page on phone and PC.</p>
+      <ul><li>Match/Differ, Over/Under, Even/Odd, Rise/Fall</li><li>11 ready strategies, Auto and Manual</li>
+          <li>Stats, daily loss limit, tick checker</li></ul>
+      <span class="go">Open MMG bot →</span>
+    </a>
+    <a class="card" href="trade.html#forex">
+      <div class="ic">💱</div>
+      <h2>Forex</h2>
+      <p>EUR/USD, GBP/USD, AUD/USD and Gold: charts, signals, backtests and practice trading.</p>
+      <ul><li>5 strategies (trend, crossover, RSI, breakout, MACD)</li><li>Honest backtest: PASS / fail on unseen data</li>
+          <li>Real trades: PC app with MetaTrader 5</li></ul>
+      <span class="go">Open Forex →</span>
+    </a>
+    <a class="card" href="trade.html#crypto">
+      <div class="ic">₿</div>
+      <h2>Crypto</h2>
+      <p>Bitcoin, Ethereum, BNB, Solana and more, with live Binance prices.</p>
+      <ul><li>Same 5 strategies, backtests, practice trading</li><li>Stop-loss and take-profit on every trade</li>
+          <li>Real trades: PC app with Binance (testnet first)</li></ul>
+      <span class="go">Open Crypto →</span>
+    </a>
+  </div>
+
+  <div class="box">💻 <b>Real trading</b> (forex through MetaTrader 5, crypto through Binance) runs in the <b>DigitBot PC app</b>,
+    because phones and browsers can't connect to MetaTrader 5 and should never hold exchange keys.
+    On the web you get the same strategies with live prices, backtests and practice trading.
+    · 🎬 <a href="tutorials.html">Tutorial videos</a></div>
+
+  <div class="box warn"><b>Be honest with yourself:</b> no bot can promise profit. MMG digits are random and every option loses a little on average.
+    Forex and crypto strategies can be tested on history, but past results do not guarantee future ones, and most retail traders lose money.
+    Start on DEMO, use stop-losses and loss limits, and never trade money you need.</div>
 </div>
-
-<h2>2. Save it as a bookmark</h2>
-
-<div class="card">
-  <b>PC (Chrome / Edge / Firefox)</b><br>
-  Easiest: show the bookmarks bar (Ctrl+Shift+B) and <b>drag this green button onto it</b>:<br><br>
-  <a class="drag" id="drag" href="#">Digit Bot</a><br><br>
-  <small>If you're signed into Chrome on your PC and phone with the same Google account, the bookmark appears on the phone by itself (bookmark sync).</small>
-</div>
-
-<div class="card">
-  <b>Android (Chrome)</b>
-  <ol>
-    <li>Tap ⋮ → ☆ to bookmark this page, then tap <b>Edit</b>.</li>
-    <li>Name: <b>Digit Bot</b>. Delete the URL and <b>paste the copied code</b>. Save.</li>
-  </ol>
-</div>
-
-<div class="card">
-  <b>iPhone / iPad (Safari)</b>
-  <ol>
-    <li>Tap Share → <b>Add Bookmark</b> → Save.</li>
-    <li>Open Bookmarks → <b>Edit</b> → tap the new bookmark.</li>
-    <li>Name: <b>Digit Bot</b>. Replace the address with the <b>copied code</b>. Done.</li>
-  </ol>
-</div>
-
-<h2>3. Use it</h2>
-<div class="card">
-  <ol>
-    <li>Open <b>mmgpredictions.com</b> and log in.</li>
-    <li><b>PC:</b> click the Digit Bot bookmark.<br>
-        <b>Android:</b> tap the address bar, type <b>Digit Bot</b> and tap the bookmark in the suggestions (opening it from the bookmarks list doesn't work on Android).<br>
-        <b>iPhone:</b> open Bookmarks and tap Digit Bot.</li>
-    <li>The <b>Digit Bot</b> panel appears on the game page.</li>
-  </ol>
-</div>
-
-<h2>Optional: open the bot automatically (no bookmark tap)</h2>
-<div class="card">
-  <b>iPhone / iPad (Safari)</b>
-  <ol>
-    <li>Install the free app <b>Userscripts</b> from the App Store and open it once.</li>
-    <li>iPhone <b>Settings → Apps → Safari → Extensions → Userscripts</b>: turn it on and set <b>mmgpredictions.com</b> to <b>Allow</b>.</li>
-    <li>In Safari open <a href="mmg-digit-bot.user.js">this script link</a>, tap the <b>aA</b> / puzzle button → <b>Userscripts</b> → <b>Install</b>.</li>
-    <li>Done: every time you open the game in Safari, the bot appears by itself and updates itself.</li>
-  </ol>
-  <b>Android</b>: Firefox + the <b>Tampermonkey</b> add-on, then open the same script link and tap Install.<br>
-  <b>PC</b>: Chrome/Edge + <b>Tampermonkey</b>, then open the script link and tap Install.
-</div>
-
-<div class="card">
-  <b>Floating bubble:</b> tap <b>–</b> on the bot to shrink it to a small bubble showing LIVE, trades and P/L.
-  Drag it anywhere; tap it to open. The screen stays on while it runs.<br>
-  <small>The bot runs inside the game page: when you switch to another app or tab it pauses, and it carries on when you come back to the game.</small>
-</div>
-
-<div class="card warn">
-  <b>Be honest with yourself:</b> no bot can predict the next digit. Every option on this site loses about 1% per trade on average.
-  Practise on DEMO, use the stop-loss, and never trade money you need. REAL accounts are refused unless you tick “Allow REAL”.
-</div>
-
-<script>
-  var url = location.origin + location.pathname.replace(/[^\/]*$/, "") + "bot.js";
-  if (location.protocol === "file:") url = "https://isaacedwards-kawuma.github.io/digitbot/bot.js";
-  var code = "javascript:(function(){var s=document.createElement('script');s.src='" + url +
-    "?t='+Date.now();s.onerror=function(){alert('Digit Bot could not load - check your internet.')};document.body.appendChild(s)})()";
-  document.getElementById("code").value = code;
-  document.getElementById("drag").href = code;
-  document.getElementById("copy").onclick = function () {
-    var t = document.getElementById("code"); t.select(); t.setSelectionRange(0, 99999);
-    (navigator.clipboard ? navigator.clipboard.writeText(code) : Promise.reject()).catch(function () { document.execCommand("copy"); });
-    document.getElementById("ok").textContent = "Copied ✓";
-  };
-</script>
 </body>
 </html>
