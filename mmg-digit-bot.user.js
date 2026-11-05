@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.7.0
+// @version      2.8.0
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -169,7 +169,9 @@
     return null;
   }
   function isDemo() {
-    return [...document.querySelectorAll("span")].some(s => visible(s) && /^demo$/i.test(txt(s)));
+    // only the game's own badge counts - never the bot's panel, which shows "DEMO" itself
+    const mine = document.getElementById("mdb");
+    return [...document.querySelectorAll("span")].some(s => !(mine && mine.contains(s)) && visible(s) && /^demo$/i.test(txt(s)));
   }
   function openTrades() {   // "Open (2)" tab of the predictions list
     for (const el of document.querySelectorAll("button, div, span, a")) {
@@ -302,36 +304,43 @@
   #mdb .hp details>div{padding:0 10px 8px}
   #mdb .hp ol,#mdb .hp ul{margin:4px 0;padding-left:18px} #mdb .hp li{margin:3px 0}
   #mdb .hp p{margin:4px 0} #mdb .hp code{background:#e2e8f0;border-radius:4px;padding:0 3px;font-size:12px}
+  #mdb .hp .vbtn{display:block;width:100%;margin:2px 0 8px;padding:8px;border:0;border-radius:8px;background:#0f172a;color:#fff;font-size:13px;font-weight:600;text-align:left}
+  #mdb .hp video{display:block;width:100%;border-radius:8px;margin:2px 0 8px;background:#000}
+  #mdb .hp .all{display:block;text-align:center;margin:6px 0 2px;font-weight:600;color:#0b7c8c}
   #mdb .hp .back{width:100%;margin-top:8px;padding:10px;border:0;border-radius:8px;background:#0b7c8c;color:#fff;font-size:15px;font-weight:600}
   `;
   const HELP = `
    <p><b>What this bot does:</b> it watches the last digit of every price tick and, when your rule
    (“Trade when”) happens, it presses the trade button for you, with your stake, until a limit stops it.</p>
-   <details open><summary>Auto or Manual?</summary><div><ul>
+   <button class="vbtn" data-v="intro">▶ Watch: what this bot does (1:20)</button>
+   <a class="all" href="https://isaacedwards-kawuma.github.io/digitbot/tutorials.html" target="_blank" rel="noopener">🎬 All tutorial videos on one page</a>
+   <details><summary>Auto or Manual?</summary><div><button class="vbtn" data-v="automanual">▶ Watch the video (0:55)</button><ul>
     <li><b>⚡ Auto</b>: pick a strategy, press <b>Start auto</b>. The bot trades by itself with the strategy's settings.</li>
     <li><b>✋ Manual</b>: you choose the button, digit, stake and limits. <b>Trade once now</b> places one trade at once;
         <b>Start</b> lets the bot trade with your settings when “Trade when” happens.</li>
    </ul></div></details>
-   <details><summary>🧪 Testing a strategy</summary><div>
+   <details><summary>🧪 Testing a strategy</summary><div><button class="vbtn" data-v="tester">▶ Watch the video (1:01)</button>
     <p>In ⚡ Auto, <b>Test this strategy</b> plays your current settings 1000 times on random digits (that is how the
     real ticks behave) with the same trigger, cooldown and limits, without money. It shows how often a run ends in
     profit, hits the stop-loss or the take-profit, and the average result. Lucky runs are common; the average is
     what you keep over time.</p></div></details>
-   <details><summary>📊 Stats and the daily loss limit</summary><div><ul>
+   <details><summary>📊 Stats and the daily loss limit</summary><div><button class="vbtn" data-v="stats">▶ Watch the video (1:12)</button><ul>
     <li>The <b>📊 Stats</b> tab lists every trade the bot placed, with win / loss and profit, and shows
         today's and all-time win rate, P/L, the longest losing run and the return on the money staked.</li>
     <li><b>Download history (CSV)</b> saves it as a spreadsheet file.</li>
+    <li><b>Check the digits</b>: the bot saves every tick it sees. “Check the saved ticks” tests them for patterns
+        (digit frequencies, repeats, streaks, rise/fall) and tells you plainly whether any pattern exists.</li>
     <li><b>Daily loss limit</b>: when today's losses reach it, the bot stops and will not trade again until tomorrow
         (counted per device and per account type). Default $20; 0 turns it off.</li>
    </ul></div></details>
-   <details><summary>Easiest: pick a strategy</summary><div><ol>
+   <details><summary>Easiest: pick a strategy</summary><div><button class="vbtn" data-v="quickauto">▶ Watch the video (1:25)</button><ol>
     <li>Open the game (Manual Trader) on <b>DEMO</b>.</li>
     <li>Open the <b>⚡ Auto</b> tab and choose a <b>Strategy</b>. All settings are filled in for you
         (LIVE clicks on). Set <b>Stake per trade</b>: stop-loss and take-profit become 10 × stake.</li>
     <li>Press <b>Start</b>, check the summary and press OK. The bot sets up the game and trades by itself
         until a limit is reached. <b>Stop</b> stops at once.</li>
    </ol><p>Changing a setting afterwards switches to <b>Custom</b> (your own settings).</p></div></details>
-   <details><summary>The strategies</summary><div><ul>
+   <details><summary>The strategies</summary><div><button class="vbtn" data-v="strategies">▶ Watch the video (1:11)</button><ul>
     <li><b>Differ – after its own digit</b>: when 7 shows, bet NOT 7. Wins ~9 in 10, small wins, one loss ≈ 10 wins.</li>
     <li><b>Differ – steady every tick</b>: bets NOT 0 on every tick, 4 s apart.</li>
     <li><b>Match – hot digit</b>: after 5 shows twice in a row, bet 5. Wins ~1 in 10, pays ~8x.</li>
@@ -342,7 +351,7 @@
     <li><b>Rise / Fall – 5 ticks</b>: bets the price is higher / lower after 5 ticks, 6 s apart.</li>
    </ul><p><b>Honestly:</b> digits are random, so a streak or a “hot” digit does not change the next tick.
    The strategies only change how often you trade and how big the swings are. All of them lose about 1% per trade on average.</p></div></details>
-   <details><summary>Quick start with your own settings (Manual tab)</summary><div><ol>
+   <details><summary>Quick start with your own settings (Manual tab)</summary><div><button class="vbtn" data-v="manual">▶ Watch the video (1:32)</button><ol>
     <li>In the game, open <b>Manual Trader</b> and make sure the account says <b>DEMO</b>.</li>
     <li><b>Button</b>: what to buy (e.g. Differ). Choose the <b>Pick digit</b> / Barrier / Duration if shown.</li>
     <li><b>Stake</b>: money per trade, e.g. <code>1</code>. Tick <b>Set up the game for me</b>.</li>
@@ -350,7 +359,7 @@
     <li>Press <b>Start</b> without “LIVE clicks” first: it only shows what it <i>would</i> do.
         Happy? Tick <b>LIVE clicks</b> and press Start again. <b>Stop</b> stops at once.</li>
    </ol></div></details>
-   <details><summary>How the bot plays, step by step</summary><div><ol>
+   <details><summary>How the bot plays, step by step</summary><div><button class="vbtn" data-v="howitplays">▶ Watch the video (1:17)</button><ol>
     <li>Checks the account (refuses REAL unless “Allow REAL”), that there are no open trades and that it can read the page.</li>
     <li>If “Set up the game for me” is ticked, it selects the game mode, digit/barrier/duration and types the stake. If you change them in the game, it changes them back.</li>
     <li>Every tick it reads the new last digit (shown in the digits row).</li>
@@ -359,14 +368,14 @@
     <li>A contract settles a few ticks later; balance and P/L update.</li>
     <li>It stops by itself at: max trades, max minutes, stop-loss, take-profit, a frozen chart or a changed page.</li>
    </ol></div></details>
-   <details><summary>The buttons (what you win on)</summary><div><ul>
+   <details><summary>The buttons (what you win on)</summary><div><button class="vbtn" data-v="strategies">▶ Watch the video (1:11)</button><ul>
     <li><b>Differ</b>: wins if the final digit is <i>not</i> your pick (~9 in 10), but pays very little.</li>
     <li><b>Match</b>: wins only if the final digit <i>is</i> your pick (~1 in 10), pays a lot.</li>
     <li><b>Over / Under</b>: final digit above / below the Barrier.</li>
     <li><b>Even / Odd</b>: final digit even / odd (~1 in 2).</li>
     <li><b>Rise / Fall</b>: price higher / lower after the Duration (5t = 5 ticks).</li>
    </ul><p>The grey line under Stake shows the win chance, the payout and the expected result per trade.</p></div></details>
-   <details><summary>Every setting explained</summary><div><ul>
+   <details><summary>Every setting explained (safety)</summary><div><button class="vbtn" data-v="safety">▶ Watch the video (1:22)</button><ul>
     <li><b>Trade when</b>: the digit that starts a trade: a digit 0-9, any even, any odd, or every tick.</li>
     <li><b>Times in a row</b>: how many ticks in a row must match first (1 = straight away).</li>
     <li><b>Max trades</b>: stop after this many trades.</li>
@@ -378,7 +387,7 @@
     <li><b>LIVE clicks</b>: off = practice (no clicks), on = really trades.</li>
     <li><b>Allow REAL</b>: needed to trade a real-money account. Leave it off.</li>
    </ul></div></details>
-   <details><summary>Messages and problems</summary><div><ul>
+   <details><summary>Messages and problems</summary><div><button class="vbtn" data-v="problems">▶ Watch the video (1:09)</button><ul>
     <li><b>“skipped - … past the $X stop-loss”</b>: losing this trade would cost more than the stop-loss allows. Lower the <b>Stake</b> or raise the <b>Stop-loss</b>.</li>
     <li><b>“stake is above your max stake”</b>: raise Max stake or lower the stake in the game.</li>
     <li><b>“This is a REAL account”</b>: switch the game to DEMO (or tick Allow REAL).</li>
@@ -392,12 +401,15 @@
     <li><b>🔔 alerts</b>: a sound (and a buzz on Android) when the bot stops by itself: happy notes for a profit,
         low notes for a loss or a limit. iPhone: the ringer switch must be on for sound.</li>
    </ul></div></details>
-   <details><summary>Example setups</summary><div><ul>
+   <details><summary>📱 On your phone: bubble and pausing</summary><div><button class="vbtn" data-v="phone">▶ Watch the video (0:53)</button>
+    <p>“–” shrinks the bot to a bubble showing LIVE, trades and P/L; drag it anywhere, tap it to open.
+    The screen stays on while the bot runs. If you switch to another app it pauses, and carries on when you come back.</p></div></details>
+   <details><summary>Example setups</summary><div><button class="vbtn" data-v="manual">▶ Watch the video (1:32)</button><ul>
     <li><b>First test</b>: Differ, pick 7, stake 1, every tick, max trades 1, stop-loss 10, max stake 1, LIVE on.</li>
     <li><b>Wait for a digit</b>: Differ, pick 5, Trade when “digit 5”, 2 in a row, max trades 10, stop-loss 10.</li>
     <li><b>Even/Odd</b>: Even, stake 1, Trade when “any odd digit”, 3 in a row, stop-loss 5, take-profit 5.</li>
    </ul></div></details>
-   <details><summary>Honest truth about winning</summary><div>
+   <details><summary>Honest truth about winning</summary><div><button class="vbtn" data-v="tester">▶ Watch the video (1:01)</button>
     <p>Every tick is random: past digits do not change the next one, so no rule or bot can predict it.
     Every option on this site pays slightly less than its fair odds, about <b>-1% per trade</b> on average.
     Differ wins ~9 of 10, but one loss wipes out ~10 wins. Practise on DEMO, always use a stop-loss,
@@ -461,6 +473,13 @@
     <div class="tbl" id="stTable"></div>
     <button class="once" id="stCsv">Download history (CSV)</button>
     <button class="clr" id="stClear">Clear history</button>
+    <div class="sec">Check the digits: is there a pattern?</div>
+    <div class="tip">The bot saves every tick it sees on this device, also when it is not trading.
+     Leave the game open (an hour is good), then check. More ticks = a surer answer.</div>
+    <div class="stx" id="tkSum"></div>
+    <button class="once" id="tkCheck">🔍 Check the saved ticks</button>
+    <div class="odds" id="tkOut" style="display:none;grid-column:1/3"></div>
+    <button class="clr" id="tkCsv" style="border-color:#cbd5e1;color:#0f172a">Download ticks (CSV)</button>
     <div class="tip">Only trades placed by the bot are listed (this device, the account type shown: DEMO or REAL).
      Totals are exact; if you also trade by hand while the bot runs, single results can be mixed up.</div>
    </div>
@@ -583,7 +602,15 @@
   placeBox();
   addEventListener("resize", placeBox);
   $("mdbHelp").onclick = () => { box.classList.remove("min"); box.classList.toggle("help"); $("mdbHelpBox").scrollTop = 0; };
-  $("mdbBack").onclick = () => box.classList.remove("help");
+  $("mdbBack").onclick = () => { box.classList.remove("help"); box.querySelectorAll(".hp video").forEach(v => v.pause()); };
+  const VIDEOS = "https://isaacedwards-kawuma.github.io/digitbot/videos/";
+  $("mdbHelpBox").addEventListener("click", e => {
+    const b = e.target.closest(".vbtn"); if (!b) return;
+    const v = document.createElement("video");
+    v.src = VIDEOS + b.dataset.v + ".mp4"; v.poster = VIDEOS + b.dataset.v + ".jpg";
+    v.controls = true; v.playsInline = true; v.setAttribute("playsinline", ""); v.preload = "auto";
+    b.replaceWith(v); v.play().catch(() => {});
+  });
   $("mdbX").onclick = () => { stop("panel closed"); box.style.display = "none"; };
 
   // drag the panel by its header (mouse + touch)
@@ -780,7 +807,7 @@
     if (!waiting.length && !events.length && open === 0) credit = 0;   // money from trades made by hand
   }
   function today(acc) { const d = dayOf(Date.now()); return H.filter(x => x.acc === acc && dayOf(x.t) === d); }
-  function dayLossNow() { return -today(accNow()).reduce((s, x) => s + (x.profit || 0), 0); }
+  function dayLossNow() { return -Math.round(100 * today(accNow()).reduce((s, x) => s + (x.profit || 0), 0)) / 100; }   // whole cents
   // "" = OK to trade; otherwise why not. Counts open stakes as lost (pessimistic).
   function dayBlock(st) {
     if (!(S.dayLimit > 0)) return "";
@@ -806,7 +833,7 @@
     $("stToday").innerHTML = cell("trades", td.n) + cell("win rate", td.rate == null ? "–" : td.rate + "%") +
       cell("P/L", money2(td.pl), plc(td.pl)) + cell("wins / losses", `${td.wins} / ${td.losses}`) +
       cell("worst loss run", td.worst) + cell("account", acc.toUpperCase(), acc === "demo" ? "ok" : "warn");
-    const lost = -td.pl;
+    const lost = -Math.round(td.pl * 100) / 100;
     $("stDay").innerHTML = !(S.dayLimit > 0) ? "Daily loss limit is off." :
       lost >= S.dayLimit ? `<span class="warn">Limit reached: trading blocked for today.</span>` :
       `Today you can still lose <b>$${Math.max(0, S.dayLimit - Math.max(0, lost)).toFixed(2)}</b> before the bot stops for the day.`;
@@ -818,6 +845,7 @@
               : x.res === "open" ? "… open" : x.profit != null ? `? ${money2(x.profit)}` : "?";
       return `<tr><td>${new Date(x.t).toTimeString().slice(0, 8)}</td><td>${x.bet}</td><td>$${x.stake}</td><td>${r}</td></tr>`;
     }).join("");
+    tkSummary();
     $("stTable").innerHTML = `<table><tr><th>time</th><th>bet</th><th>stake</th><th>result</th></tr>${rows ||
       '<tr><td colspan="4">No trades yet.</td></tr>'}</table>`;
   }
@@ -835,6 +863,105 @@
     H = []; waiting.length = 0; events.length = 0; credit = 0; saveH(); renderStats(); log("history cleared", "warn");
   };
   $("f_dayLimit").addEventListener("change", () => renderStats());
+
+  // ------------------------------------------------------------------ tick recorder + randomness check
+  const TKEY = "mmgDigitBot.ticks.v1", TMAX = 30000;           // ~8 hours of 1-second ticks
+  let TK = []; try { TK = JSON.parse(localStorage.getItem(TKEY) || "[]"); } catch (e) {}
+  let tkDirty = 0;
+  function recordTick(d) {
+    const raw = (priceText() || "").replace(/\D/g, "");
+    TK.push([Math.round(Date.now() / 100) / 10, d, raw ? +raw : null, symbolName()]);
+    if (TK.length > TMAX) TK.splice(0, TK.length - TMAX);
+    if (++tkDirty >= 15) { tkDirty = 0; try { localStorage.setItem(TKEY, JSON.stringify(TK)); } catch (e) { TK.splice(0, 5000); } }
+    if (S.tab === "stats" && TK.length % 15 === 0) tkSummary();
+  }
+  function tkSummary() {
+    const n = TK.length, hrs = n ? (TK[n - 1][0] - TK[0][0]) / 3600 : 0;
+    $("tkSum").innerHTML = cell("ticks saved", n) + cell("over", hrs < 1 ? Math.round(hrs * 60) + " min" : hrs.toFixed(1) + " h") +
+      cell("enough?", n >= 3000 ? '<span class="ok">yes</span>' : n >= 1000 ? "fair" : "too few");
+  }
+  // chi-square p-value (upper tail), via the regularized gamma function
+  function lnGamma(z) {
+    const g = [676.5203681218851, -1259.1392167224028, 771.32342877765313, -176.61502916214059,
+               12.507343278686905, -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+    if (z < 0.5) return Math.log(Math.PI / Math.sin(Math.PI * z)) - lnGamma(1 - z);
+    z -= 1; let x = 0.99999999999980993; for (let i = 0; i < 8; i++) x += g[i] / (z + i + 1);
+    const tt = z + 7.5; return 0.5 * Math.log(2 * Math.PI) + (z + 0.5) * Math.log(tt) - tt + Math.log(x);
+  }
+  function chiP(x, df) {
+    const a = df / 2, y = x / 2; if (y <= 0) return 1;
+    let sum = 1 / a, term = 1 / a;
+    for (let n = 1; n < 500; n++) { term *= y / (a + n); sum += term; if (term < sum * 1e-12) break; }
+    return Math.max(0, 1 - Math.exp(-y + a * Math.log(y) - lnGamma(a)) * sum);
+  }
+  // Pairs of ticks k apart, only inside unbroken runs (no gap > 3 s between neighbours, same market)
+  function pairs(k) {
+    const out = [];
+    for (let i = 0; i + k < TK.length; i++) {
+      let ok = true;
+      for (let j = i; j < i + k; j++) if (TK[j + 1][0] - TK[j][0] > 3 || TK[j + 1][3] !== TK[j][3]) { ok = false; break; }
+      if (ok) out.push(i);
+    }
+    return out;
+  }
+  function checkTicks() {
+    const n = TK.length;
+    if (n < 300) return `Only ${n} ticks saved. Leave the game open longer (at least 1000 ticks, ideally 3000+), then check again.`;
+    const rows = [], z = (obs, exp, cnt) => cnt ? (obs - exp) / Math.sqrt(exp * (1 - exp) / cnt) : 0;
+    const flag = zz => Math.abs(zz) >= 3 ? '<span class="warn">unusual</span>' : '<span class="ok">normal</span>';
+    // 1. are all digits equally common?
+    const f = Array(10).fill(0); TK.forEach(x => f[x[1]]++);
+    const chi = f.reduce((s, c) => s + (c - n / 10) ** 2 / (n / 10), 0), pv = chiP(chi, 9);
+    rows.push(`<b>1. How often each digit shows</b> (fair = 10% each):<br>` +
+      f.map((c, i) => `${i}: ${(100 * c / n).toFixed(1)}%`).join(" · ") +
+      `<br>Chance of an unevenness this big by pure luck: ${(100 * pv).toFixed(0)}% → ${pv < 0.001 ? '<span class="warn">unusual</span>' : '<span class="ok">normal</span>'}`);
+    // 2. Differ/Match: does a digit come back k ticks later more or less than 10%?
+    let worst = 0, txt = [];
+    for (let k = 1; k <= 5; k++) {
+      const P = pairs(k), same = P.filter(i => TK[i + k][1] === TK[i][1]).length, zz = z(same / P.length, 0.1, P.length);
+      worst = Math.max(worst, Math.abs(zz)); txt.push(`${k} tick${k > 1 ? "s" : ""} later: ${(100 * same / P.length).toFixed(1)}%`);
+    }
+    rows.push(`<b>2. Same digit again</b> (Match/Differ; fair = 10%):<br>${txt.join(" · ")} → ${flag(worst)}`);
+    // 3. Even/Odd after a streak of 3
+    const P1 = pairs(1); let evA = 0, evN = 0, odA = 0, odN = 0;
+    for (const i of P1) {
+      if (i < 2 || TK[i][0] - TK[i - 2][0] > 6) continue;
+      const a = TK[i - 2][1] % 2, b = TK[i - 1][1] % 2, c = TK[i][1] % 2, nx = TK[i + 1][1] % 2;
+      if (a === 1 && b === 1 && c === 1) { odN++; if (nx === 0) odA++; }
+      if (a === 0 && b === 0 && c === 0) { evN++; if (nx === 1) evA++; }
+    }
+    const z3 = Math.max(Math.abs(z(evN ? evA / evN : .5, .5, evN)), Math.abs(z(odN ? odA / odN : .5, .5, odN)));
+    rows.push(`<b>3. After 3 odd in a row, next is even</b>: ${odN ? (100 * odA / odN).toFixed(1) : "–"}% (${odN} times) · ` +
+      `<b>after 3 even, next is odd</b>: ${evN ? (100 * evA / evN).toFixed(1) : "–"}% (${evN} times). Fair = 50% → ${flag(z3)}`);
+    // 4. Over/Under: is the next digit linked to this one?
+    const xs = P1.map(i => TK[i][1]), ys = P1.map(i => TK[i + 1][1]), m = xs.length;
+    const mx = xs.reduce((a, b) => a + b, 0) / m, my = ys.reduce((a, b) => a + b, 0) / m;
+    let sxy = 0, sxx = 0, syy = 0; for (let i = 0; i < m; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) ** 2; syy += (ys[i] - my) ** 2; }
+    const r = sxy / Math.sqrt(sxx * syy), z4 = r * Math.sqrt(m);
+    rows.push(`<b>4. Is the next digit linked to this one?</b> (Over/Under) link = ${r.toFixed(3)} (fair ≈ 0) → ${flag(z4)}`);
+    // 5. Rise/Fall: up after 5 ticks, and do moves continue or reverse?
+    const P5 = []; { let last = -9; for (const i of pairs(5)) if (i >= last + 5 && TK[i][2] != null && TK[i + 5][2] != null) { P5.push(i); last = i; } }   // separate windows
+    const up = P5.filter(i => TK[i + 5][2] > TK[i][2]).length, z5 = z(up / P5.length, .5, P5.length);
+    const P2 = pairs(2).filter(i => TK[i][2] != null && TK[i + 1][2] != null && TK[i + 2][2] != null);
+    let cont = 0, cn = 0; for (const i of P2) { const a = TK[i + 1][2] - TK[i][2], b = TK[i + 2][2] - TK[i + 1][2]; if (a && b) { cn++; if ((a > 0) === (b > 0)) cont++; } }
+    const z6 = z(cn ? cont / cn : .5, .5, cn);
+    rows.push(`<b>5. Rise/Fall</b>: price higher after 5 ticks ${(100 * up / P5.length).toFixed(1)}% · ` +
+      `a move continues next tick ${cn ? (100 * cont / cn).toFixed(1) : "–"}%. Fair = 50% → ${flag(Math.max(Math.abs(z5), Math.abs(z6)))}`);
+    const bad = /unusual/.test(rows.join(""));
+    return `<b>${n} ticks checked.</b><br>` + rows.join("<br><br>") + "<br><br>" + (bad
+      ? `<b class="warn">Something looks unusual.</b> With many checks, one can look odd by luck. Save more ticks and check again; ` +
+        `if it stays unusual, download the ticks and send them for a closer look.`
+      : `<b class="ok">No pattern found.</b> The digits behave like random numbers: past digits do not change the next one, ` +
+        `so no setting or strategy can raise the win chance. What you can control: the stake, the limits, and how long you play.`);
+  }
+  $("tkCheck").onclick = () => { const o = $("tkOut"); o.style.display = ""; o.innerHTML = checkTicks(); log("checked " + TK.length + " saved ticks"); };
+  $("tkCsv").onclick = () => {
+    const lines = ["time,market,last digit,price digits"].concat(TK.map(x => [new Date(x[0] * 1000).toISOString(), `"${x[3]}"`, x[1], x[2] == null ? "" : x[2]].join(",")));
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
+    a.download = `digitbot-ticks-${dayOf(Date.now())}.csv`; document.body.appendChild(a); a.click(); a.remove();
+    log(`ticks saved: ${TK.length}`, "ok");
+  };
   var statsReady = true; showTab();
 
   // Plays the current settings many times on random digits (the real ticks behave like random digits),
@@ -881,6 +1008,7 @@
   $("mdbStop").onclick = () => stop("stopped by you");
 
   function onTick(d) {
+    recordTick(d);
     digits.push(d); if (digits.length > 24) digits.shift();
     $("mdbDigits").textContent = digits.join(" ");
     if (!running || finishing || document.hidden) return;

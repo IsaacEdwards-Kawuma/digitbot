@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Digit Bot – tutorial videos</title>
+<style>
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; max-width: 980px; margin: 0 auto; padding: 16px; line-height: 1.5; color: #0f172a; background: #f1f5f9; }
+  h1 { font-size: 1.6rem; margin: 4px 0; }
+  .sub { color: #475569; margin-bottom: 18px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; }
+  .card video { display: block; width: 100%; background: #000; aspect-ratio: 1080 / 912; }
+  .card div { padding: 10px 14px 14px; }
+  .card h2 { font-size: 1.05rem; margin: 0 0 4px; }
+  .card p { margin: 0; color: #475569; font-size: .92rem; }
+  .n { display: inline-block; min-width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 6px; background: #0b7c8c; color: #fff; font-size: .8rem; margin-right: 6px; }
+  .warn { background: #fff7ed; border: 1px solid #fdba74; border-radius: 10px; padding: 12px 14px; margin-top: 20px; }
+  a { color: #0b7c8c; }
+</style>
+</head>
+<body>
+<h1>🎬 Digit Bot – tutorial videos</h1>
+<div class="sub">Short videos with voice and captions. Recorded on a practice copy of the game with a DEMO balance.
+  The same videos are in the bot's <b>?</b> Help, under each topic. <a href="./">Install the bot</a></div>
+
+<div class="grid" id="grid"></div>
+
+<div class="warn"><b>Be honest with yourself:</b> no bot can predict the next digit. Every option on this site loses a little per trade on average.
+  Practise on DEMO, use the stop-loss and the daily loss limit, and never trade money you need.</div>
+
+<script>
+  var V = [
+    ["intro", "What this bot does", "What the bot does, the three tabs, and how it keeps you safe."],
+    ["tester", "Testing a strategy", "Play a strategy 1000 times without money, and read the results honestly."],
+    ["stats", "Stats and the daily loss limit", "Your trade history, win rate, profit or loss, and the limit that stops a bad day."],
+    ["quickauto", "Easiest: pick a strategy", "From DEMO check to a running bot in under a minute."],
+    ["strategies", "The strategies", "All game modes and their strategies: what wins, how often, and what it pays."],
+    ["manual", "Quick start with your own settings", "The Manual tab: button, stake, rule, limits, Trade once now and Start."],
+    ["automanual", "Auto or Manual?", "The difference between the two ways of trading."],
+    ["howitplays", "How the bot plays, step by step", "Exactly what happens after you press Start."],
+    ["safety", "Safety settings explained", "Stop-loss, take-profit, max stake, LIVE clicks, Allow REAL, daily limit and alerts."],
+    ["problems", "Messages and problems", "The common messages, why they appear, and how to fix them."],
+    ["phone", "On your phone: bubble and pausing", "The floating bubble, and what happens when you switch apps."]
+  ];
+  document.getElementById("grid").innerHTML = V.map(function (v, i) {
+    return '<div class="card"><video controls preload="none" playsinline poster="videos/' + v[0] + '.jpg" src="videos/' + v[0] + '.mp4"></video>' +
+           '<div><h2><span class="n">' + (i + 1) + '</span>' + v[1] + '</h2><p>' + v[2] + '</p></div></div>';
+  }).join("");
+</script>
+</body>
+</html>
