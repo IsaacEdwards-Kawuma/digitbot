@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.10.0
+// @version      2.11.0
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -297,7 +297,13 @@
   #mdb.min{width:auto;border-radius:999px} #mdb.min .hd{padding:7px 12px;border-radius:999px}
   #mdb.min .hd b{flex:none} #mdb .hd #mdbBadge{font-size:12px;font-weight:600;white-space:nowrap}
   #mdb .tabs{display:flex;gap:6px;margin-bottom:8px}
-  #mdb .tabs button{flex:1;padding:8px;border:1px solid #cbd5e1;background:#f1f5f9;border-radius:8px;font-size:14px;font-weight:600;color:#475569}
+  #mdb .tabs button{flex:1;padding:8px 2px;border:1px solid #cbd5e1;background:#f1f5f9;border-radius:8px;font-size:14px;font-weight:600;color:#475569}
+  #mdb .rbc{border:1px solid #cbd5e1;border-radius:9px;padding:6px;margin:5px 0;background:#f8fafc}
+  #mdb .rbl{display:flex;gap:4px;align-items:center;flex-wrap:wrap;margin:2px 0;font-size:12.5px}
+  #mdb .rbl select,#mdb .rbl input{padding:3px 4px;font-size:12.5px;max-width:150px} #mdb .rbl input{width:58px}
+  #mdb .rbx{margin-left:auto} #mdb .rbx button{padding:1px 6px;font-size:11px;border:1px solid #cbd5e1;background:#fff;border-radius:5px}
+  #mdb .rbg{display:grid;grid-template-columns:1fr 1fr;gap:5px} #mdb .rbg input,#mdb .rbg select{width:100%}
+  #mdb .rbrow{display:flex;gap:5px;margin:6px 0} #mdb .rbrow button{flex:1}
   #mdb .tabs button.on{background:#0b7c8c;border-color:#0b7c8c;color:#fff}
   #mdb .once{grid-column:1/3;padding:9px;border:0;border-radius:8px;background:#2563eb;color:#fff;font-size:14px;font-weight:600}
   #mdb .once:disabled{background:#94a3b8}
@@ -452,7 +458,7 @@
   box.innerHTML = `
   <div class="hd"><b>🤖 Digit Bot</b><span id="mdbBadge"></span><button id="mdbHome" title="Welcome: MMG, Forex or Crypto">🏠</button><button id="mdbHelp" title="Help: how the bot works">?</button><button id="mdbMin">–</button><button id="mdbX">✕</button></div>
   <div class="bd">
-   <div class="tabs"><button id="tabAuto">⚡ Auto</button><button id="tabMan">✋ Manual</button><button id="tabStats">📊 Stats</button></div>
+   <div class="tabs"><button id="tabAuto">⚡ Auto</button><button id="tabMan">✋ Manual</button><button id="tabBuild">🧩 Rounds</button><button id="tabStats">📊 Stats</button></div>
    <div class="g" id="pAuto">
     <div class="tip">Auto trading: pick a strategy, press Start. The bot trades by itself until a limit stops it.</div>
     <div class="sec">Strategy</div>
@@ -633,8 +639,9 @@
   }
   refreshForm();
   function showTab() {
-    if (!["auto", "manual", "stats"].includes(S.tab)) S.tab = "auto";
-    if (S.tab !== "stats") S.mode = S.tab;          // Start uses the last of Auto / Manual
+    if (!["auto", "manual", "stats", "build"].includes(S.tab)) S.tab = "auto";
+    if (S.tab === "auto" || S.tab === "manual") S.mode = S.tab;          // Start uses the last of Auto / Manual
+    if ($("pBuild")) { $("pBuild").style.display = S.tab === "build" ? "" : "none"; $("tabBuild").classList.toggle("on", S.tab === "build"); }
     $("pAuto").style.display = S.tab === "auto" ? "" : "none";
     $("pMan").style.display = S.tab === "manual" ? "" : "none";
     $("pStats").style.display = S.tab === "stats" ? "" : "none";
@@ -646,7 +653,7 @@
   $("tabAuto").onclick = () => { S.tab = "auto"; save(); showTab(); };
   $("tabMan").onclick = () => { S.tab = "manual"; save(); showTab(); };
   $("tabStats").onclick = () => { S.tab = "stats"; save(); showTab(); };
-  showTab();
+  $("tabBuild").onclick = () => { S.tab = "build"; save(); showTab(); };
   const UI_KEY = "mmgDigitBot.ui.v1";
   let UI = {}; try { UI = JSON.parse(localStorage.getItem(UI_KEY) || "{}"); } catch (e) {}
   const saveUI = () => { try { localStorage.setItem(UI_KEY, JSON.stringify(UI)); } catch (e) {} };
@@ -1102,14 +1109,215 @@
     log(`test: ${pc(r.up)} of practice runs ended in profit, average ${m(r.avg)} per run`);
   };
 
+
+  // ================================================================== 🧩 ROUND BUILDER (our take on MMG's Auto Trader)
+  // A strategy = settings + rule cards. Each round (after the last trade has settled) the first card whose IF is true
+  // changes the stake and buys a contract (or skips). Same safety as everything else: demo first, stop-loss,
+  // take-profit, max trades, top-stake cap, daily loss limit.
+  const BKEY = "mmgDigitBot.builder.v1";
+  const CONDS = { always: "always (otherwise)", first: "first round", won: "last trade won", lost: "last trade lost",
+                  lossRow: "losses in a row ≥", winRow: "wins in a row ≥", dEven: "last digit is even", dOdd: "last digit is odd",
+                  dEq: "last digit =", dGt: "last digit >", dLt: "last digit <", pctHi: "digit # share of last 60 ≥ %", pctLo: "digit # share of last 60 ≤ %",
+                  plUp: "session profit ≥ $", plDown: "session loss ≥ $" };
+  const NEED_N = { lossRow: 1, winRow: 1, dEq: 1, dGt: 1, dLt: 1, pctHi: 2, pctLo: 2, plUp: 1, plDown: 1 };
+  const SACT = { keep: "keep stake", reset: "reset stake to start", mult: "multiply stake by", add: "add $", sub: "take away $", set: "set stake to $" };
+  const BUYS = { even: "Even", odd: "Odd", over: "Over", under: "Under", differ: "Differs", match: "Matches", rise: "Rise", fall: "Fall", skip: "skip this round" };
+  const TEMPLATES = {
+    "Martingale (Even)": { start: 1, tp: 20, sl: 50, maxTrades: 50, cap: 16, rules: [{ c: "lost", s: "mult", v: 2, b: "even" }, { c: "always", s: "reset", b: "even" }] },
+    "Paroli (Even)": { start: 1, tp: 20, sl: 50, maxTrades: 50, cap: 8, rules: [{ c: "winRow", n: 3, s: "reset", b: "even" }, { c: "won", s: "mult", v: 2, b: "even" }, { c: "always", s: "reset", b: "even" }] },
+    "D'Alembert (Over 3)": { start: 1, tp: 20, sl: 50, maxTrades: 50, cap: 10, rules: [{ c: "lost", s: "add", v: 1, b: "over", pick: 3 }, { c: "won", s: "sub", v: 1, b: "over", pick: 3 }, { c: "always", s: "keep", b: "over", pick: 3 }] },
+    "Differs sniper (0)": { start: 1, tp: 5, sl: 20, maxTrades: 50, cap: 1, rules: [{ c: "always", s: "reset", b: "differ", pick: 0 }] },
+    "Odd after an even (flat)": { start: 1, tp: 10, sl: 20, maxTrades: 40, cap: 1, rules: [{ c: "dEven", s: "reset", b: "odd" }, { c: "always", s: "keep", b: "skip" }] },
+    "Cool-down after 3 losses": { start: 1, tp: 10, sl: 20, maxTrades: 40, cap: 1, rules: [{ c: "lossRow", n: 3, s: "reset", b: "skip" }, { c: "always", s: "reset", b: "even" }] },
+  };
+  let BS = { cur: JSON.parse(JSON.stringify(TEMPLATES["Martingale (Even)"])), name: "Martingale (Even)", saved: {} };
+  try { Object.assign(BS, JSON.parse(localStorage.getItem(BKEY) || "{}")); } catch (e) {}
+  const saveB = () => { try { localStorage.setItem(BKEY, JSON.stringify(BS)); } catch (e) {} };
+  const RB = { on: false };
+  const optS = (o, v) => Object.entries(o).map(([k, t]) => `<option value="${k}" ${String(k) === String(v) ? "selected" : ""}>${t}</option>`).join("");
+
+  const pB = document.createElement("div"); pB.className = "g"; pB.id = "pBuild"; pB.style.display = "none";
+  $("pStats").parentNode.insertBefore(pB, $("pStats"));
+  function rbCard(r, i, n) {
+    const needN = NEED_N[r.c], needPick = ["over", "under", "differ", "match"].includes(r.b), needV = ["mult", "add", "sub", "set"].includes(r.s);
+    return `<div class="rbc" data-i="${i}">
+      <div class="rbl"><b>${i === n - 1 && r.c === "always" ? "OTHERWISE" : "IF"}</b><select data-f="c">${optS(CONDS, r.c)}</select>
+        ${needN === 2 ? `<select data-f="d">${[...Array(10).keys()].map(k => `<option ${+r.d === k ? "selected" : ""}>${k}</option>`).join("")}</select>` : ""}
+        ${needN ? `<input data-f="n" type="number" step="any" value="${r.n ?? (r.c === "pctHi" ? 15 : r.c === "pctLo" ? 5 : 2)}">` : ""}</div>
+      <div class="rbl">→ <select data-f="s">${optS(SACT, r.s)}</select>${needV ? `<input data-f="v" type="number" step="any" min="0" value="${r.v ?? (r.s === "mult" ? 2 : 1)}">` : ""}</div>
+      <div class="rbl">→ <b>buy</b> <select data-f="b">${optS(BUYS, r.b)}</select>${needPick ? `<select data-f="pick">${[...Array(10).keys()].map(k => `<option ${+(r.pick ?? 5) === k ? "selected" : ""}>${k}</option>`).join("")}</select>` : ""}
+        <span class="rbx"><button data-a="up" title="move up">▲</button><button data-a="rm" title="remove">✕</button></span></div></div>`;
+  }
+  function rbRender() {
+    const c = BS.cur;
+    pB.innerHTML = `<div style="grid-column:1/3">
+      <div class="tip">Build your own auto strategy: settings, then rule cards. Each round the <b>first card whose IF is true</b> sets the stake and buys.</div>
+      <div class="rbg"><label>Name<input id="rb_name" value="${(BS.name || "").replace(/"/g, "&quot;")}"></label>
+        <label>Template<select id="rb_tpl"><option value="">load…</option>${Object.keys(TEMPLATES).map(k => `<option>${k}</option>`).join("")}${Object.keys(BS.saved).map(k => `<option value="saved:${k}">💾 ${k}</option>`).join("")}</select></label>
+        <label>Start stake $<input id="rb_start" type="number" min="0.35" step="0.01" value="${c.start}"></label>
+        <label>Never stake above $<input id="rb_cap" type="number" min="0.35" step="0.01" value="${c.cap}"></label>
+        <label>Take-profit $<input id="rb_tp" type="number" min="0" step="0.01" value="${c.tp}"></label>
+        <label>Stop-loss $<input id="rb_sl" type="number" min="0" step="0.01" value="${c.sl}"></label>
+        <label>Max trades<input id="rb_max" type="number" min="1" step="1" value="${c.maxTrades}"></label>
+        <label>Wallet<select id="rb_wallet"><option value="demo">demo only</option><option value="real" ${c.wallet === "real" ? "selected" : ""}>real allowed</option></select></label></div>
+      <div class="sec">Each round</div><div id="rbCards">${c.rules.map((r, i) => rbCard(r, i, c.rules.length)).join("")}</div>
+      <button class="clr" id="rbAdd">+ add a rule card</button>
+      <div class="rbrow"><button class="start" id="rbRun">▶ Run</button><button class="stop" id="rbStopB">■ Stop</button></div>
+      <div class="odds" id="rbStat">${RB.on ? "" : "Stopped."}</div>
+      <button class="once" id="rbTest">🧪 Test it: 1000 practice sessions (no money)</button><div class="odds" id="rbTestOut" style="display:none"></div>
+      <div class="rbrow"><button class="clr" id="rbSave">💾 Save</button><button class="clr" id="rbExport">Export</button><button class="clr" id="rbImport">Import</button><button class="clr" id="rbDel">Delete saved</button></div>
+      <div class="tip">Honest note: stake rules change how wins and losses are spread, never the odds. Martingale-type rules win most sessions and lose more overall. Test first, demo first.</div></div>`;
+    if (RB.on) rbStatus();
+  }
+  function rbRead() {
+    const c = BS.cur, num = id => parseFloat($(id).value);
+    c.start = Math.max(0.35, num("rb_start") || 1); c.cap = Math.max(c.start, num("rb_cap") || c.start); c.tp = Math.max(0, num("rb_tp") || 0);
+    c.sl = Math.max(0, num("rb_sl") || 0); c.maxTrades = Math.max(1, Math.round(num("rb_max") || 1)); c.wallet = $("rb_wallet").value; BS.name = $("rb_name").value.trim() || "My rounds";
+    c.rules = [...pB.querySelectorAll(".rbc")].map(card => { const g = f => { const e = card.querySelector(`[data-f="${f}"]`); return e ? e.value : undefined; };
+      const r = { c: g("c"), s: g("s"), b: g("b") }; if (g("n") != null) r.n = +g("n"); if (g("d") != null) r.d = +g("d"); if (g("v") != null) r.v = +g("v"); if (g("pick") != null) r.pick = +g("pick"); return r; });
+    saveB();
+  }
+  pB.addEventListener("change", e => {
+    if (e.target.id === "rb_tpl") { const v = e.target.value; if (!v) return; if (RB.on) { log("Stop the rounds first.", "warn"); return; }
+      BS.cur = JSON.parse(JSON.stringify(v.startsWith("saved:") ? BS.saved[v.slice(6)] : TEMPLATES[v])); BS.name = v.replace(/^saved:/, ""); saveB(); rbRender(); log(`rounds: loaded ${BS.name}`, "ok"); return; }
+    rbRead(); if (e.target.dataset.f) rbRender();                 // a select changed what the card needs
+  });
+  pB.addEventListener("click", e => {
+    const a = e.target.dataset.a, card = e.target.closest(".rbc"), id = e.target.id;
+    if (card && (a === "rm" || a === "up")) { if (RB.on) return log("Stop the rounds first.", "warn"); rbRead(); const i = +card.dataset.i, R = BS.cur.rules;
+      if (a === "rm" && R.length > 1) R.splice(i, 1); if (a === "up" && i > 0) [R[i - 1], R[i]] = [R[i], R[i - 1]]; saveB(); rbRender(); return; }
+    if (id === "rbAdd") { rbRead(); BS.cur.rules.splice(Math.max(0, BS.cur.rules.length - 1), 0, { c: "lost", s: "keep", b: "even" }); saveB(); rbRender(); }
+    if (id === "rbRun") { rbRead(); rbStart(); }
+    if (id === "rbStopB") rbStop("stopped by you");
+    if (id === "rbTest") { rbRead(); rbTestShow(); }
+    if (id === "rbSave") { rbRead(); BS.saved[BS.name] = JSON.parse(JSON.stringify(BS.cur)); saveB(); rbRender(); log(`rounds: saved "${BS.name}"`, "ok"); }
+    if (id === "rbDel") { if (BS.saved[BS.name] && confirm(`Delete saved "${BS.name}"?`)) { delete BS.saved[BS.name]; saveB(); rbRender(); } }
+    if (id === "rbExport") { rbRead(); const j = JSON.stringify({ name: BS.name, ...BS.cur }); try { navigator.clipboard.writeText(j); } catch (x) {} prompt("Copied. Your strategy as text (share or back it up):", j); }
+    if (id === "rbImport") { const t = prompt("Paste a strategy you exported:"); if (!t) return; try { const o = JSON.parse(t); if (!o.rules || !o.rules.length) throw 0;
+      BS.name = o.name || "Imported"; delete o.name; BS.cur = o; saveB(); rbRender(); log(`rounds: imported ${BS.name}`, "ok"); } catch (x) { log("That text is not a strategy export.", "warn"); } }
+  });
+  // ---- the rules
+  function rbCond(r, st, last60, d) {
+    switch (r.c) {
+      case "always": return true; case "first": return st.n === 0;
+      case "won": return st.last === "win"; case "lost": return st.last === "loss";
+      case "lossRow": return st.lossRow >= (r.n || 1); case "winRow": return st.winRow >= (r.n || 1);
+      case "dEven": return d != null && d % 2 === 0; case "dOdd": return d != null && d % 2 === 1;
+      case "dEq": return d === +r.n; case "dGt": return d > +r.n; case "dLt": return d < +r.n;
+      case "pctHi": case "pctLo": { if (last60.length < 30) return false; const pc = 100 * last60.filter(x => x === +r.d).length / last60.length; return r.c === "pctHi" ? pc >= +r.n : pc <= +r.n; }
+      case "plUp": return st.pl >= +r.n; case "plDown": return -st.pl >= +r.n;
+    }
+    return false;
+  }
+  function rbDecide(c, st, last60, d) {          // -> { rule, stake, buy, pick } ; stake already capped
+    const r = c.rules.find(x => rbCond(x, st, last60, d)); if (!r) return null;
+    let k = st.stake;
+    k = r.s === "reset" ? c.start : r.s === "mult" ? k * (+r.v || 1) : r.s === "add" ? k + (+r.v || 0) : r.s === "sub" ? k - (+r.v || 0) : r.s === "set" ? +r.v : k;
+    k = Math.round(Math.max(c.start, k) * 100) / 100;
+    let note = "";
+    if (k > c.cap) { k = c.start; note = `above the $${c.cap} cap - back to $${c.start}`; }
+    if (c.sl > 0 && k > c.sl + st.pl) { k = Math.round((c.sl + st.pl) * 100) / 100; note = `cut to $${k} so the stop-loss can't be passed`; }
+    return { r, stake: k, buy: r.b, pick: r.pick ?? 5, note };
+  }
+  const estPay = (b, pick) => { const p = { even: 0.5, odd: 0.5, rise: 0.5, fall: 0.5, differ: 0.9, match: 0.1, over: (9 - pick) / 10, under: pick / 10 }[b];
+    return { p, pay: b === "even" || b === "odd" ? 0.98 : b === "differ" ? 0.10 : Math.max(0.01, 0.95 / p - 1) }; };
+  const winsOn = (b, pick, d, up) => ({ even: d % 2 === 0, odd: d % 2 === 1, over: d > pick, under: d < pick, differ: d !== pick, match: d === pick, rise: up, fall: !up }[b]);
+  // ---- 1000 practice sessions on your recorded ticks (or random digits)
+  function rbTestShow() {
+    const c = BS.cur, rec = TK.map(x => x[1]).filter(x => x != null), useRec = rec.length >= 3000;
+    let ses = 0, up = 0, tpH = 0, slH = 0, sum = 0, staked = 0, worst = 0, best = 0, big = 0, nTr = 0;
+    for (let s2 = 0; s2 < 1000; s2++) {
+      const st = { stake: c.start, last: null, lossRow: 0, winRow: 0, pl: 0, n: 0 }, hist = [];
+      let off = useRec ? Math.floor(Math.random() * (rec.length - 400)) : 0, guard = 0;
+      const next = () => useRec ? rec[off++ % rec.length] : Math.floor(Math.random() * 10);
+      for (let k = 0; k < 60; k++) hist.push(next());
+      while (st.n < c.maxTrades && guard++ < 5000) {
+        if (c.tp > 0 && st.pl >= c.tp) { tpH++; break; } if (c.sl > 0 && -st.pl >= c.sl) { slH++; break; }
+        const d0 = hist[hist.length - 1], dec = rbDecide(c, st, hist.slice(-60), d0);
+        const d = next(); hist.push(d); if (hist.length > 80) hist.shift();
+        if (!dec || dec.buy === "skip" || !(dec.stake >= 0.35)) { if (!dec || dec.stake < 0.35) break; continue; }
+        st.stake = dec.stake; const { pay } = estPay(dec.buy, dec.pick), won = winsOn(dec.buy, dec.pick, d, Math.random() < 0.5);
+        st.pl += won ? st.stake * pay : -st.stake; staked += st.stake; big = Math.max(big, st.stake); st.n++; nTr++;
+        st.last = won ? "win" : "loss"; st.lossRow = won ? 0 : st.lossRow + 1; st.winRow = won ? st.winRow + 1 : 0;
+      }
+      ses++; sum += st.pl; if (st.pl > 0) up++; worst = Math.min(worst, st.pl); best = Math.max(best, st.pl);
+    }
+    const m = v => (v < 0 ? "-$" : "+$") + Math.abs(v).toFixed(2), per = staked ? 100 * sum / staked : 0;
+    const out = $("rbTestOut"); out.style.display = "";
+    out.innerHTML = `<b>1000 practice sessions</b> of "${BS.name}" on ${useRec ? `your ${rec.length} recorded ticks` : "random digits (record ticks in 📊 Stats to use real ones)"}:<br>
+      In profit: <b>${Math.round(up / 10)}%</b> · hit take-profit ${Math.round(tpH / 10)}% · hit stop-loss ${Math.round(slH / 10)}%<br>
+      Average per session: <b class="${sum >= 0 ? "ok" : "warn"}">${m(sum / ses)}</b> over ${(nTr / ses).toFixed(1)} trades · best ${m(best)} · worst ${m(worst)}<br>
+      Result per $ staked: <b class="${per >= 0 ? "ok" : "warn"}">${per >= 0 ? "+" : ""}${per.toFixed(2)}%</b> · biggest stake $${big.toFixed(2)}<br>
+      Payouts estimated (Even/Odd 98%, Differs 10%, others from the odds). Winning sessions are luck; the average is what you keep.`;
+    log(`rounds test: ${Math.round(up / 10)}% of sessions in profit, average ${m(sum / ses)}`);
+  }
+  // ---- running it on the game
+  let rbSaved = null;
+  function rbStart() {
+    if (RB.on) return; if (running || busy) return log("Stop the main bot first (one bot at a time).", "warn");
+    const c = BS.cur, demo = isDemo();
+    if (!demo && (c.wallet !== "real" || !S.allowReal)) return log("This is a REAL account: set Wallet to 'real allowed' AND tick Allow REAL in Manual (or switch to DEMO).", "warn");
+    if (!circleRow() || !priceText()) return log("Can't find the game. Open the Manual Trader page.", "warn");
+    if (openTrades()) return log("Wait until your open trades have finished.", "warn");
+    { const why = dayBlock(0); if (why) return log(why, "warn"); }
+    if (!demo && !confirm(`⚠ REAL MONEY\nRun "${BS.name}"?\nStart $${c.start}, cap $${c.cap}, stop-loss $${c.sl}, take-profit $${c.tp}, max ${c.maxTrades} trades.`)) return;
+    rbSaved = { button: S.button, pick: S.pick, stakeSet: S.stakeSet, maxStake: S.maxStake };
+    Object.assign(RB, { on: true, t0: Date.now(), st: { stake: c.start, last: null, lossRow: 0, winRow: 0, pl: 0, n: 0 }, seen: null });
+    S.maxStake = Math.max(S.maxStake, c.cap); keepAwake(true); audioUnlock();
+    log(`🧩 ROUNDS ON: "${BS.name}" - start $${c.start}, cap $${c.cap}, TP $${c.tp}, SL $${c.sl}, max ${c.maxTrades}${demo ? " (DEMO)" : " (REAL)"}`, "ok"); rbStatus();
+  }
+  function rbStop(why) {
+    if (!RB.on) return; RB.on = false;
+    if (rbSaved) { Object.assign(S, rbSaved); save(); fillForm(); refreshForm(); }
+    const st = RB.st; log(`🧩 ROUNDS OFF: ${why} - ${st.n} trades, session ${st.pl >= 0 ? "+" : ""}$${st.pl.toFixed(2)}`, st.pl >= 0 ? "ok" : "warn");
+    alertUser(st.pl >= 0); rbStatus(); if (!running) keepAwake(false);
+  }
+  function rbStatus() { const st = RB.st || {}; const el = $("rbStat"); if (!el) return;
+    el.innerHTML = RB.on ? `<b class="ok">RUNNING</b> ${BS.name} · trades ${st.n}/${BS.cur.maxTrades} · session <b class="${st.pl >= 0 ? "ok" : "warn"}">${st.pl >= 0 ? "+" : ""}$${(st.pl || 0).toFixed(2)}</b> · next stake $${(st.stake || 0).toFixed(2)} · last ${st.last || "–"}`
+      : RB.st ? `Stopped. Last session: ${RB.st.n} trades, ${RB.st.pl >= 0 ? "+" : ""}$${RB.st.pl.toFixed(2)}.` : "Stopped."; }
+  function rbTick(d) {
+    if (busy || document.hidden) return;
+    const c = BS.cur, st = RB.st;
+    if (waiting.length) return;                                   // each round waits for the last result
+    const mine = H.filter(x => x.t >= RB.t0 && String(x.strat).startsWith("🧩") && (x.res === "win" || x.res === "loss"));
+    const last = mine[mine.length - 1];
+    if (last && last.t !== RB.seen) { RB.seen = last.t; st.last = last.res; st.pl = Math.round(mine.reduce((a, x) => a + (x.profit || 0), 0) * 100) / 100;
+      st.lossRow = last.res === "loss" ? st.lossRow + 1 : 0; st.winRow = last.res === "win" ? st.winRow + 1 : 0; rbStatus(); }
+    if (c.tp > 0 && st.pl >= c.tp) return rbStop(`take-profit reached (+$${st.pl.toFixed(2)})`);
+    if (c.sl > 0 && -st.pl >= c.sl) return rbStop(`stop-loss reached ($${st.pl.toFixed(2)})`);
+    if (st.n >= c.maxTrades) return rbStop(`max ${c.maxTrades} trades done`);
+    if (!isDemo() && (c.wallet !== "real" || !S.allowReal)) return rbStop("account is not DEMO");
+    const last60 = TK.slice(-61, -1).map(x => x[1]), dec = rbDecide(c, st, last60, d);
+    if (!dec) return rbStop("no rule card matched - add an 'always' card at the end");
+    if (dec.stake < 0.35) return rbStop("no room left before the stop-loss");
+    if (dec.buy === "skip") return;
+    if (dec.note) log(`🧩 stake ${dec.note}`, "warn");
+    { const why = dayBlock(dec.stake); if (why) return rbStop(why); }
+    Object.assign(S, { button: dec.buy, pick: dec.pick, stakeSet: dec.stake }); st.stake = dec.stake;
+    busy = true;
+    (async () => {
+      try {
+        if (gameProblem()) await setupGame();
+        const b = tradeButton(S.button); if (!b || b.disabled) { log(`🧩 ${S.button.toUpperCase()} unavailable - skipped`, "warn"); return; }
+        const sk = stake(); if (sk !== dec.stake) { log(`🧩 Amount shows $${sk}, expected $${dec.stake} - skipped`, "warn"); return; }
+        ledger(balance()); b.click(); lastClick = Date.now(); st.n++;
+        recordTrade(sk, payoutPct(b), d, "🧩 " + BS.name);
+        log(`🧩 #${st.n} ${describe()} $${sk} (${CONDS[dec.r.c].replace(/ [≥≤=<>#].*$/, "")}${dec.r.n != null && NEED_N[dec.r.c] ? " " + dec.r.n : ""})`, "ok"); rbStatus();
+      } catch (e) { rbStop("couldn't set up the game: " + e); }
+      finally { busy = false; }
+    })();
+  }
+  rbRender(); showTab();
+
   $("mdbOnce").onclick = tradeOnce;
   $("mdbStart").onclick = start;
-  $("mdbStop").onclick = () => stop("stopped by you");
+  $("mdbStop").onclick = () => { if (RB.on) rbStop("stopped by you"); stop("stopped by you"); };
 
   function onTick(d) {
     recordTick(d);
     digits.push(d); if (digits.length > 24) digits.shift();
     $("mdbDigits").textContent = digits.join(" ");
+    if (RB.on) rbTick(d);
     if (!running || finishing || document.hidden) return;
     run = triggerHit(d) ? run + 1 : 0;
     if (run < S.inRow) return;
