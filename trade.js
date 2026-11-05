@@ -2,6 +2,10 @@
 (function () {
   "use strict";
   const E = window.Engine, $ = id => document.getElementById(id), PC = window.DB_PC || null;
+  const SET_DEF = { remember: true, tf: "1h", startView: "full", up: "#22c55e", down: "#ef4444", bg: "#0b1220", grid: true, utc: false,
+                    sound: true, volume: 0.08, slAtr: 1.5, rr: 2, be: 1, risk: 1, trail: 2, dayLoss: 3, start: 10000, autoRef: true, watchN: 24 };
+  let SET = Object.assign({}, SET_DEF); try { Object.assign(SET, JSON.parse(localStorage.getItem("dbSettings") || "{}")); } catch (e) {}
+  const saveSet = () => localStorage.setItem("dbSettings", JSON.stringify(SET));
   const DATA = "https://data-api.binance.vision/api/v3/";
   const MARKETS = {
     forex: [["EURUSDT", "EUR/USD", "fx", "spot", "Forex"], ["USDTTRY", "USD/TRY (Turkish lira)", "fx", "spot", "Forex"], ["USDTZAR", "USD/ZAR (S. African rand)", "fx", "spot", "Forex"],
@@ -162,8 +166,8 @@
   }
 
   // ---------------------------------------------------------------- chart (TradingView Lightweight Charts, free / open source)
-  const LW = window.LightweightCharts, TZ = new Date().getTimezoneOffset() * 60;
-  const tsec = ms => isMT5() ? ms / 1000 : ms / 1000 - TZ;   // local time on the chart (MT5: broker time)
+  const LW = window.LightweightCharts, TZL = new Date().getTimezoneOffset() * 60;
+  const tsec = ms => isMT5() || SET.utc ? ms / 1000 : ms / 1000 - TZL;   // local time on the chart (MT5: broker time)
   const cbar = x => ({ time: tsec(x.t), open: x.o, high: x.h, low: x.l, close: x.c });
   const vbar = x => ({ time: tsec(x.t), value: x.v, color: x.c >= x.o ? "rgba(34,197,94,.45)" : "rgba(239,68,68,.45)" });
   const IND = [["ema", "EMA 20/50/200", true], ["bb", "Bollinger", false], ["vol", "Volume", true], ["rsi", "RSI", true],
@@ -176,10 +180,10 @@
     if (chart) chart.remove();
     S = {}; posLines = [];
     chart = LW.createChart($("lw"), { autoSize: true,
-      layout: { background: { color: "#0b1220" }, textColor: "#94a3b8", panes: { separatorColor: "#334155", enableResize: true } },
-      grid: { vertLines: { color: "#162033" }, horzLines: { color: "#162033" } }, crosshair: { mode: 0 },
+      layout: { background: { color: SET.bg }, textColor: "#94a3b8", panes: { separatorColor: "#334155", enableResize: true } },
+      grid: { vertLines: { color: "#162033", visible: SET.grid }, horzLines: { color: "#162033", visible: SET.grid } }, crosshair: { mode: 0 },
       rightPriceScale: { borderColor: "#334155" }, timeScale: { borderColor: "#334155", timeVisible: true, rightOffset: 6 } });
-    S.c = chart.addSeries(LW.CandlestickSeries, { upColor: "#22c55e", downColor: "#ef4444", borderVisible: false, wickUpColor: "#22c55e", wickDownColor: "#ef4444" });
+    S.c = chart.addSeries(LW.CandlestickSeries, { upColor: SET.up, downColor: SET.down, borderVisible: false, wickUpColor: SET.up, wickDownColor: SET.down });
     const line = (col, pane = 0, w = 1.5, style = 0) => chart.addSeries(LW.LineSeries, { color: col, lineWidth: w, lineStyle: style, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }, pane);
     if (ind("ema")) { S.e20 = line("#facc15"); S.e50 = line("#38bdf8"); S.e200 = line("#a78bfa"); }
     if (ind("bb")) { S.bbu = line("#94a3b8", 0, 1, 2); S.bbm = line("#64748b", 0, 1, 1); S.bbl = line("#94a3b8", 0, 1, 2); }
@@ -293,7 +297,7 @@
   // ---------------------------------------------------------------- practice account
   const AKEY = () => "dbTrade.acct." + mode;
   let acct = null, auto = null;
-  function loadAcct() { try { acct = JSON.parse(localStorage.getItem(AKEY())); } catch (e) {} if (!acct || !acct.pos) acct = { bal: 10000, start: 10000, pos: [], hist: [] }; }
+  function loadAcct() { try { acct = JSON.parse(localStorage.getItem(AKEY())); } catch (e) {} if (!acct || !acct.pos) acct = { bal: +SET.start || 10000, start: +SET.start || 10000, pos: [], hist: [] }; }
   const saveAcct = () => localStorage.setItem(AKEY(), JSON.stringify(acct));
   const today = () => new Date().toDateString();
   const todayHist = () => acct.hist.filter(h => new Date(h.exitT).toDateString() === today());
@@ -390,8 +394,13 @@
     $("title").textContent = mode === "forex" ? "💱 Forex" : "₿ Crypto";
     $("swForex").classList.toggle("on", mode === "forex"); $("swCrypto").classList.toggle("on", mode === "crypto");
     $("fxWrap").classList.toggle("hide", !(mode === "forex" && PC));
-    fillMarkets();
-    $("otherWrap").style.display = mode === "crypto" ? "" : "none";
+    const last = SET.remember ? JSON.parse(localStorage.getItem("dbLast." + mode) || "null") : null;
+    if (last && mode === "crypto" && last.mtype && !pendingSym) $("mtype").value = last.mtype;
+    if (last && last.extra) last.extra.forEach(x => { if (!extra.some(e => e[0] === x[0])) extra.push(x); });
+    fillMarkets(pendingSym || (last && last.sym)); pendingSym = null;
+    if (!tfSet) { tfSet = true; $("tf").value = (last && last.tf) || SET.tf; }
+    else if (last && last.tf && SET.remember) $("tf").value = last.tf;
+    $("otherWrap").style.display = mode === "crypto" ? "" : "none"; rememberLast();
     $("btLong").checked = $("ptLong").checked = mode === "crypto" && mtype() === "spot";
     $("mtWrap").style.display = mode === "crypto" ? "" : "none";
     $("btCost").value = mode === "crypto" ? 0.1 : 0.02;
@@ -402,9 +411,11 @@
   $("stratHelp").innerHTML = "<ul>" + Object.values(E.STRATEGIES).map(s => `<li><b>${s.name}</b>: ${s.desc}</li>`).join("") + "</ul>";
   document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => showTab(b.dataset.t));
   window.addEventListener("hashchange", setMode);
-  $("sym").onchange = $("tf").onchange = () => { watch(); if (auto) { auto = null; $("ptState").textContent = "Auto stopped (market changed)."; log("auto stopped: market or timeframe changed"); } $("btTable").innerHTML = ""; loadHistory(); };
+  let pendingSym = null, tfSet = false;
+  const rememberLast = () => { if (SET.remember) localStorage.setItem("dbLast." + mode, JSON.stringify({ sym: $("sym").value, tf: $("tf").value, mtype: $("mtype").value, extra })); };
+  $("sym").onchange = $("tf").onchange = () => { watch(); rememberLast(); if (auto) { auto = null; $("ptState").textContent = "Auto stopped (market changed)."; log("auto stopped: market or timeframe changed"); } $("btTable").innerHTML = ""; loadHistory(); };
   $("ptStrat").onchange = draw; $("ptLong").onchange = draw;
-  $("mtype").onchange = () => { fillMarkets($("sym").value); if (auto) { auto = null; $("ptState").textContent = "Auto stopped (market changed)."; } $("btTable").innerHTML = ""; loadHistory(); };
+  $("mtype").onchange = () => { fillMarkets($("sym").value); rememberLast(); if (auto) { auto = null; $("ptState").textContent = "Auto stopped (market changed)."; } $("btTable").innerHTML = ""; loadHistory(); };
   function fillMarkets(keep) {
     const groups = {}; mlist().forEach(m => (groups[m[4] || "Markets"] = groups[m[4] || "Markets"] || []).push(m));
     $("sym").innerHTML = Object.entries(groups).map(([g, ms]) => `<optgroup label="${g}">${ms.map(m => `<option value="${m[0]}">${m[1]}</option>`).join("")}</optgroup>`).join("") +
@@ -426,7 +437,7 @@
   $("cFull").onclick = () => { const c = $("chartbox"); document.fullscreenElement ? document.exitFullscreen() : (c.requestFullscreen || c.webkitRequestFullscreen).call(c); };
   document.addEventListener("fullscreenchange", () => { $("cFull").textContent = document.fullscreenElement ? "✕ Exit full screen" : "⛶ Full screen"; });
   $("cFit").onclick = fitChart;
-  $("viewMode").value = localStorage.getItem("dbView") || "full";
+  $("viewMode").value = localStorage.getItem("dbView") || SET.startView;
   const applyView = () => { document.body.classList.toggle("mini", $("viewMode").value === "mini"); };
   $("viewMode").onchange = () => { localStorage.setItem("dbView", $("viewMode").value); applyView(); };
   applyView(); applySize();
@@ -467,7 +478,7 @@
     log(`alert added: ${label($("sym").value)} ${$("alOp").value} ${fmt(price)}`);
   };
   $("alPerm").onclick = () => { if ("Notification" in window) Notification.requestPermission().then(renderAlerts); else alert("This browser has no pop-up notifications; alerts still show here with a sound."); };
-  function beep() { try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.frequency.value = 880; g.gain.value = 0.08; o.connect(g); g.connect(a.destination); o.start(); setTimeout(() => { o.frequency.value = 1320; }, 150); setTimeout(() => { o.stop(); a.close(); }, 320); } catch (e) {} }
+  function beep() { if (!SET.sound) return; try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.frequency.value = 880; g.gain.value = +SET.volume || 0.08; o.connect(g); g.connect(a.destination); o.start(); setTimeout(() => { o.frequency.value = 1320; }, 150); setTimeout(() => { o.stop(); a.close(); }, 320); } catch (e) {} }
   function notify(title, body) {
     beep(); log(`🔔 ${title}: ${body}`);
     const d = document.createElement("div"); d.textContent = `🔔 ${title} - ${body}`; $("toast").appendChild(d); setTimeout(() => d.remove(), 9000);
@@ -491,7 +502,7 @@
   // ---- watchlist: live prices of the other markets (click to open)
   async function watch() {
     if (isMT5() || document.hidden) { if (isMT5()) $("watch").innerHTML = `<div class="mut" style="font-size:12px">Your MetaTrader 5 markets are in the Market list.</div>`; return; }
-    const list = mlist().slice(0, 24), spot = list.filter(m => (mode === "crypto" ? mtype() !== "futures" : m[3] !== "fut")).map(m => m[0]), fut = list.map(m => m[0]).filter(s => !spot.includes(s));
+    const list = mlist().slice(0, +SET.watchN || 24), spot = list.filter(m => (mode === "crypto" ? mtype() !== "futures" : m[3] !== "fut")).map(m => m[0]), fut = list.map(m => m[0]).filter(s => !spot.includes(s));
     const got = {};
     try {
       if (spot.length) (await (await fetch(`${DATA}ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(spot))}&type=MINI`)).json()).forEach(x => got[x.symbol] = x);
@@ -503,6 +514,105 @@
   }
   $("watch").onclick = e => { const r = e.target.closest(".wl"); if (r) { $("sym").value = r.dataset.sym; $("sym").onchange(); } };
   setInterval(watch, 10000); setTimeout(watch, 1500);
+  // ---- 🔎 search: every Binance USDT coin (spot + futures), forex, metals, energy, MT5 symbols
+  let ALL = null, qSel = 0, qHits = [];
+  const WORDS = { gold: "XAUUSDT", silver: "XAGUSDT", oil: "CLUSDT", crude: "CLUSDT", wti: "CLUSDT", gas: "NATGASUSDT", copper: "COPPERUSDT", platinum: "XPTUSDT",
+                  palladium: "XPDUSDT", euro: "EURUSDT", eur: "EURUSDT", bitcoin: "BTCUSDT", ethereum: "ETHUSDT" };
+  async function allMarkets() {
+    if (ALL) return ALL;
+    const list = [], seen = new Set(), add = x => { if (!seen.has(x.sym + (x.mt5 ? "5" : ""))) { seen.add(x.sym + (x.mt5 ? "5" : "")); list.push(x); } };
+    MARKETS.crypto.forEach(m => add({ sym: m[0], name: m[1], mode: "crypto", where: m[3] === "so" ? "Crypto · spot only" : "Crypto · spot + futures" }));
+    MARKETS.forex.forEach(m => add({ sym: m[0], name: m[1], mode: "forex", where: m[4] + (m[3] === "fut" ? " · futures" : "") }));
+    if (PC) MARKETS.mt5.forEach(m => add({ sym: m[0], name: m[1], mode: "forex", mt5: true, where: "MetaTrader 5 (PC)" }));
+    try {
+      const [sp, fu] = await Promise.all([fetch(DATA + "ticker/price").then(r => r.json()), fetch("https://fapi.binance.com/fapi/v1/ticker/price").then(r => r.json()).catch(() => [])]);
+      const px = {}, spot = new Set(sp.map(x => x.symbol)), fut = new Set(fu.map(x => x.symbol));
+      sp.forEach(x => px[x.symbol] = +x.price); fu.forEach(x => { if (px[x.symbol] == null) px[x.symbol] = +x.price; });
+      [...spot, ...fut].filter(s => /USDT$/.test(s) && !/^USDT/.test(s)).forEach(s => add({ sym: s, name: s.replace(/USDT$/, "") + "/USDT", mode: "crypto",
+        where: spot.has(s) && fut.has(s) ? "Crypto · spot + futures" : spot.has(s) ? "Crypto · spot only" : "Crypto · futures only", futOnly: !spot.has(s) }));
+      list.forEach(x => x.px = px[x.sym]);
+    } catch (e) { /* offline: built-in lists only */ }
+    return (ALL = list);
+  }
+  async function search() {
+    const q = $("q").value.trim().toLowerCase(); if (!q) { $("qres").classList.add("hide"); return; }
+    const list = await allMarkets(), w = WORDS[q];
+    qHits = list.map(x => { const s = x.sym.toLowerCase(), n = x.name.toLowerCase();
+      const sc = x.sym === w ? 9 : s === q || s === q + "usdt" ? 8 : s.startsWith(q) ? 6 : n.startsWith(q) ? 5 : n.includes(q) ? 4 : s.includes(q) ? 2 : 0;
+      return { x, sc: sc ? sc + (MARKETS.crypto.concat(MARKETS.forex).some(m => m[0] === x.sym) ? 0.5 : 0) : 0 }; })
+      .filter(h => h.sc > 0).sort((a, b) => b.sc - a.sc || a.x.sym.length - b.x.sym.length).slice(0, 14).map(h => h.x);
+    qSel = 0; renderQ();
+  }
+  function renderQ() {
+    $("qres").innerHTML = qHits.length ? qHits.map((x, i) => `<div class="r ${i === qSel ? "sel" : ""}" data-i="${i}"><span><b>${x.name}</b> <small>${x.sym}</small><br><small>${x.where}</small></span>
+      <span style="text-align:right">${x.px ? fmt(x.px) : ""}</span></div>`).join("") : `<div class="r mut">No market found. Coins must trade against USDT on Binance.</div>`;
+    $("qres").classList.remove("hide");
+  }
+  function openMarket(x) {
+    $("qres").classList.add("hide"); $("q").value = ""; $("q").blur();
+    if (x.mode === "crypto") {
+      if (!MARKETS.crypto.some(m => m[0] === x.sym) && !extra.some(m => m[0] === x.sym)) extra.push([x.sym, x.name, "c", x.futOnly ? "" : (x.where.includes("spot only") ? "so" : ""), "Your coins"]);
+      if (x.futOnly) $("mtype").value = "futures"; else if (x.where.includes("spot only")) $("mtype").value = "spot";
+    }
+    if (PC && x.mode === "forex") $("fxsrc").value = x.mt5 ? "mt5" : "web";
+    if (x.mode !== mode || (PC && x.mode === "forex" && isMT5() !== !!x.mt5)) { pendingSym = x.sym; if (x.mode !== mode) location.hash = "#" + x.mode; else setMode(); return; }
+    fillMarkets(x.sym); $("sym").onchange(); log(`opened ${x.name} (${x.where})`);
+  }
+  let qT = 0;
+  $("q").oninput = () => { clearTimeout(qT); qT = setTimeout(search, 120); };
+  $("q").onkeydown = e => {
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); qSel = Math.max(0, Math.min(qHits.length - 1, qSel + (e.key === "ArrowDown" ? 1 : -1))); renderQ(); }
+    else if (e.key === "Enter" && qHits[qSel]) openMarket(qHits[qSel]);
+    else if (e.key === "Escape") { $("qres").classList.add("hide"); $("q").blur(); }
+  };
+  $("qres").onmousedown = e => { const r = e.target.closest(".r[data-i]"); if (r) { e.preventDefault(); openMarket(qHits[+r.dataset.i]); } };
+  $("q").onblur = () => setTimeout(() => $("qres").classList.add("hide"), 150);
+  $("q").onfocus = () => { allMarkets(); if ($("q").value) search(); };
+  document.addEventListener("keydown", e => { if (e.key === "/" && !/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); $("q").focus(); } });
+  // ---- ⚙️ settings page
+  function applySettings(first) {
+    ["btSl", "btRr", "btBe", "btRisk", "ptRisk", "ptTrail", "ptDay"].forEach((id, k) => { const v = [SET.slAtr, SET.rr, SET.be, SET.risk, SET.risk, SET.trail, SET.dayLoss][k]; if ($(id)) $(id).value = v; });
+    $("autoRef").checked = !!SET.autoRef;
+    if (!first) { buildChart(); if (B) { recompute(true); fitChart(); } }
+  }
+  function settingsPage() {
+    const f = (k, l, type, extra2) => `<label>${l}<input data-k="${k}" type="${type}" ${type === "checkbox" ? (SET[k] ? "checked" : "") : `value="${SET[k]}"`} ${extra2 || ""}></label>`;
+    const sel = (k, l, opts) => `<label>${l}<select data-k="${k}">${opts.map(([v, t]) => `<option value="${v}" ${String(SET[k]) === String(v) ? "selected" : ""}>${t}</option>`).join("")}</select></label>`;
+    $("setBox").innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><h2>⚙️ Settings</h2><button id="setClose">✕ Close</button></div>
+      <div class="note" style="margin-top:0">Saved in this browser and used every time you open the page.</div>
+      <h3>Start-up</h3><div class="grid">
+        ${f("remember", "Open the market and timeframe I used last", "checkbox")}
+        ${sel("tf", "Default timeframe", [["1s", "Live (1 s)"], ["1m", "M1"], ["3m", "M3"], ["5m", "M5"], ["15m", "M15"], ["30m", "M30"], ["1h", "H1"], ["4h", "H4"], ["1d", "D1"]])}
+        ${sel("startView", "Start in", [["full", "Full view"], ["mini", "Mini view"]])}
+        ${f("autoRef", "Auto-refresh the history", "checkbox")}</div>
+      <h3>Chart</h3><div class="grid">
+        ${f("up", "Rising candles", "color")}${f("down", "Falling candles", "color")}${f("bg", "Background", "color")}
+        ${f("grid", "Show grid lines", "checkbox")}${sel("utc", "Times shown in", [["false", "my local time"], ["true", "UTC"]])}</div>
+      <h3>Strategies, backtest and practice trading</h3><div class="grid">
+        ${f("slAtr", "Stop-loss (× ATR)", "number", 'step="0.1" min="0.3"')}${f("rr", "Take-profit (× stop)", "number", 'step="0.1" min="0.5"')}
+        ${f("be", "Break-even at (R, 0 = off)", "number", 'step="0.5" min="0"')}${f("trail", "Trailing stop (× ATR, 0 = off)", "number", 'step="0.5" min="0"')}
+        ${f("risk", "Risk per trade (%)", "number", 'step="0.1" min="0.1" max="5"')}${f("dayLoss", "Daily loss limit (%)", "number", 'step="0.5" min="0.5"')}
+        ${f("start", "Practice account start ($)", "number", 'step="100" min="100"')}</div>
+      <h3>Alerts</h3><div class="grid">
+        ${f("sound", "Sound", "checkbox")}${sel("volume", "Volume", [["0.03", "quiet"], ["0.08", "normal"], ["0.2", "loud"]])}
+        <label>Pop-up notifications<button id="setPerm">${"Notification" in window && Notification.permission === "granted" ? "✓ on" : "Turn on"}</button></label>
+        <label>Test<button id="setTest">🔔 Play an alert</button></label></div>
+      <h3>Side panel</h3><div class="grid">${sel("watchN", "Markets shown", [[8, "8"], [16, "16"], [24, "24"], [41, "all"]])}</div>
+      <div class="row" style="margin-top:16px"><button id="setReset">Reset all settings</button><button class="pri" id="setDone">Done</button></div>`;
+  }
+  $("setBtn").onclick = () => { settingsPage(); $("setModal").classList.remove("hide"); };
+  $("setModal").onclick = e => { if (e.target.id === "setModal" || e.target.id === "setClose" || e.target.id === "setDone") $("setModal").classList.add("hide");
+    if (e.target.id === "setReset" && confirm("Put every setting back to the default?")) { SET = Object.assign({}, SET_DEF); saveSet(); applySettings(); settingsPage(); }
+    if (e.target.id === "setPerm" && "Notification" in window) Notification.requestPermission().then(() => { settingsPage(); renderAlerts(); });
+    if (e.target.id === "setTest") notify("Test alert", "this is how an alert looks and sounds"); };
+  $("setModal").onchange = e => { const k = e.target.dataset.k; if (!k) return;
+    let v = e.target.type === "checkbox" ? e.target.checked : e.target.type === "number" ? +e.target.value : e.target.value;
+    if (k === "utc") v = v === "true"; if (k === "watchN") v = +v;
+    SET[k] = v; saveSet();
+    if (k === "startView") { localStorage.setItem("dbView", v); $("viewMode").value = v; applyView(); }
+    if (k === "tf" && !SET.remember) { $("tf").value = v; $("tf").onchange(); }
+    applySettings(); if (B) draw(); };
+  applySettings(true);
   // ---- auto-refresh: re-download the history now and then (the chart itself moves live)
   setInterval(() => { if (!$("autoRef").checked || loading || document.hidden) return;
     const per = ["1s", "1m", "3m", "5m"].includes($("tf").value) ? 120000 : 300000; if (Date.now() - lastLoad > per) loadHistory(true); }, 15000);
@@ -526,7 +636,7 @@
     openTrade(side, closedIdx(), null, "manual", "manual " + side);
   };
   $("ptPos").onclick = e => { const id = e.target.dataset.close; if (!id) return; const t = acct.pos.find(x => String(x.id) === id); if (t) { closeTrade(t, lastPrice[t.sym] ?? t.entry, "closed by you"); renderAccount(); draw(); } };
-  $("ptReset").onclick = () => { if (confirm("Reset the practice account to $10,000 and delete its history?")) { acct = { bal: 10000, start: 10000, pos: [], hist: [] }; saveAcct(); renderAccount(); draw(); log("practice account reset"); } };
+  $("ptReset").onclick = () => { if (confirm(`Reset the practice account to ${money(+SET.start || 10000)} and delete its history?`)) { acct = { bal: +SET.start || 10000, start: +SET.start || 10000, pos: [], hist: [] }; saveAcct(); renderAccount(); draw(); log("practice account reset"); } };
   $("ptCsv").onclick = () => {
     const rows = [["opened", "closed", "market", "timeframe", "side", "strategy", "entry", "exit", "units", "P/L", "R", "reason"]].concat(acct.hist.map(h =>
       [new Date(h.t).toISOString(), new Date(h.exitT).toISOString(), label(h.sym), h.tf, h.side, h.strat, h.entry, h.exit, h.units, h.pl.toFixed(2), h.r.toFixed(3), h.reason]));
