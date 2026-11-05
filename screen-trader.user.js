@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DigitBot Screen Trader
 // @namespace    digitbot.local
-// @version      1.1.0
+// @version      1.2.0
 // @description  Reads the price on Binance, TradingView and MetaTrader 5 Web, finds signals with the DigitBot strategies, and clicks Buy / Sell / Close for you (with stop-loss and take-profit). Demo / paper accounts first.
 // @match        https://www.binance.com/*
 // @match        https://demo.binance.com/*
@@ -36,7 +36,7 @@
   // ---- on the DigitBot trading page: only a bridge. The page says "start the Screen Trader on <platform> with these settings";
   //      we keep it in Tampermonkey's storage (shared by all sites) and the platform page picks it up.
   if (/github\.io$|^127\.0\.0\.1$/.test(location.hostname)) {
-    const mark = () => { document.documentElement.dataset.dbst = "1.1.0"; };
+    const mark = () => { document.documentElement.dataset.dbst = "1.2.0"; };
     mark(); new MutationObserver(mark).observe(document.documentElement, { attributes: true, attributeFilter: ["data-dbst"] });
     window.addEventListener("dbst-handoff", e => {
       try { const h = JSON.parse(e.detail); h.t = Date.now(); if (typeof GM_setValue === "function") GM_setValue("handoff", h); else localStorage.setItem("dbst.handoff", JSON.stringify(h));
@@ -46,7 +46,7 @@
   }
   if (window.top !== window.self || document.getElementById("dbst")) return;
   const E = (typeof Engine !== "undefined" && Engine) || window.Engine;
-  const VER = "1.1.0";
+  const VER = "1.2.0";
 
   // ---------------------------------------------------------------- storage (per site)
   const HOST = location.hostname.replace(/^www\./, "");
@@ -56,6 +56,8 @@
                 maxLev: 3, practice: true, signalsOnly: false, account: "demo", realOk: false, sizeUnit: "coin", needTpSl: true, untested: false };
   let S = Object.assign({}, DEF, gget("set." + HOST, {}));
   const saveS = () => gset("set." + HOST, S);
+  Object.entries(S.custom || {}).forEach(([k, d]) => { try { if (E.addCustom) E.addCustom(k, d); } catch (e) {} });   // your own strategies from the DigitBot page
+  if (!E.STRATEGIES[S.strategy]) S.strategy = "ema_pullback";
   let TEACH = gget("teach." + HOST, {});
   let ST = Object.assign({ pos: null, hist: [] }, gget("state." + HOST, {}));
   const saveST = () => gset("state." + HOST, ST);
@@ -553,6 +555,7 @@
     let h = gget("handoff", null); if (!h && localStorage.getItem("dbst.handoff")) try { h = JSON.parse(localStorage.getItem("dbst.handoff")); } catch (e) {}
     if (!h || Date.now() - h.t > 5 * 60000 || h.site !== Object.keys(SITES).find(k => SITES[k] === SITE)) return;
     gset("handoff", null); try { localStorage.removeItem("dbst.handoff"); } catch (e) {}
+    if (h.custom && E.addCustom) { E.addCustom(h.strategy, h.custom); S.custom = Object.assign({}, S.custom, { [h.strategy]: h.custom }); }
     if (h.tf && TF_MS[h.tf]) S.tf = h.tf; if (h.strategy && E.STRATEGIES[h.strategy]) S.strategy = h.strategy;
     if (h.symOverride) S.symOverride = h.symOverride; else delete S.symOverride;
     if (h.risk) S.risk = +h.risk; if (h.sizeUnit) S.sizeUnit = h.sizeUnit;

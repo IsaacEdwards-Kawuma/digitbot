@@ -188,6 +188,36 @@
     return { score, bias: score >= 25 ? "BULLISH" : score <= -25 ? "BEARISH" : "NEUTRAL / RANGING", notes };
   }
 
-  const API = { ema, rsi, atr, addAll, STRATEGIES, signalAt, simulate, stats, backtestAll, marketView };
+  // ---------------------------------------------------------------- your own strategies: simple rules, same backtest
+  // def = { name, buy: [cond], sell: [cond], sl_atr?, rr? }   cond = { a, op, b, n }   op: ">" "<" "xa" (crosses above) "xb" (crosses below)
+  const SRC = { close: ["Close", "c"], open: ["Open", "o"], high: ["High", "h"], low: ["Low", "l"], prev_close: ["Previous close", "c", -1],
+                ema9: ["EMA 9", "ema9"], ema20: ["EMA 20", "ema20"], ema21: ["EMA 21", "ema21"], ema50: ["EMA 50", "ema50"], ema200: ["EMA 200", "ema200"],
+                rsi: ["RSI 14", "rsi"], macd: ["MACD line", "macd"], macd_sig: ["MACD signal", "macd_sig"], macd_hist: ["MACD histogram", "macd_hist"],
+                atr: ["ATR 14", "atr"], dc_hi: ["20-bar high", "dc_hi"], dc_lo: ["20-bar low", "dc_lo"], num: ["number", null] };
+  const OPS = { ">": "is above", "<": "is below", xa: "crosses above", xb: "crosses below" };
+  function val(b, k, i, n) { if (k === "num") return +n; const d = SRC[k]; if (!d) return NaN; const j = i + (d[2] || 0); return j < 0 ? NaN : b[d[1]][j]; }
+  function condOk(b, c, i) {
+    const a0 = val(b, c.a, i), b0 = val(b, c.b, i, c.n);
+    if (c.op === ">") return a0 > b0; if (c.op === "<") return a0 < b0;
+    const a1 = val(b, c.a, i - 1), b1 = val(b, c.b, i - 1, c.n);
+    return c.op === "xa" ? a0 > b0 && a1 <= b1 : c.op === "xb" ? a0 < b0 && a1 >= b1 : false;
+  }
+  const condText = c => `${SRC[c.a][0]} ${OPS[c.op]} ${c.b === "num" ? c.n : SRC[c.b][0]}`;
+  function compileRule(def) {
+    let cur = null;
+    const all = (cs, i) => cs && cs.length && cs.every(c => condOk(cur, c, i));
+    return { name: "⭐ " + def.name, custom: true, def,
+      desc: (def.buy && def.buy.length ? "BUY when " + def.buy.map(condText).join(" and ") : "") + (def.sell && def.sell.length ? (def.buy && def.buy.length ? "; " : "") + "SELL when " + def.sell.map(condText).join(" and ") : ""),
+      fn: (b, i, p) => {
+        if (i < 1) return null; cur = b;
+        const q = Object.assign({}, p, def.sl_atr ? { sl_atr: +def.sl_atr } : {}, def.rr ? { rr: +def.rr } : {});
+        if (all(def.buy, i)) return order("buy", b.c[i], b.atr[i], q, def.buy.map(condText).join(", "));
+        if (all(def.sell, i)) return order("sell", b.c[i], b.atr[i], q, def.sell.map(condText).join(", "));
+        return null; } };
+  }
+  function addCustom(id, def) { STRATEGIES[id] = compileRule(def); return STRATEGIES[id]; }
+  function removeCustom(id) { if (STRATEGIES[id] && STRATEGIES[id].custom) delete STRATEGIES[id]; }
+
+  const API = { ema, rsi, atr, addAll, STRATEGIES, signalAt, simulate, stats, backtestAll, marketView, SRC, OPS, compileRule, addCustom, removeCustom, condText };
   if (typeof module !== "undefined" && module.exports) module.exports = API; else root.Engine = API;
 })(typeof window !== "undefined" ? window : this);

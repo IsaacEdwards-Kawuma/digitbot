@@ -30,6 +30,22 @@
   .mbox h2 { margin: 0 0 10px; } .mbox h3 { margin: 14px 0 6px; font-size: 1rem; color: #7dd3fc; }
   .mbox .grid label { flex-direction: row; justify-content: space-between; align-items: center; color: var(--tx); font-size: 13px; gap: 8px; }
   .mbox input[type=color] { width: 46px; height: 30px; padding: 0; }
+  .chartbox { position: relative; } .crow { display: flex; gap: 0; } .crow #lw { flex: 1; min-width: 0; }
+  .dtools { width: 38px; display: flex; flex-direction: column; gap: 3px; padding: 4px 3px; background: #0b1220; border: 1px solid var(--line); border-right: 0; border-radius: 12px 0 0 12px; }
+  .dtools button { padding: 5px 0; font-size: 15px; line-height: 1; border-radius: 6px; background: transparent; border: 1px solid transparent; }
+  .dtools button.on { background: #0ea5b7; } .dtools button:hover { border-color: var(--line); } .dtools hr { border: 0; border-top: 1px solid var(--line); margin: 3px 0; width: 100%; }
+  .crow #lw { border-radius: 0 12px 12px 0; }
+  .scalebtn { position: absolute; right: 74px; bottom: 34px; z-index: 6; display: flex; gap: 3px; }
+  .scalebtn button { padding: 1px 7px; font-size: 12px; border-radius: 5px; background: #0b1220cc; } .scalebtn button.on { background: #0ea5b7; }
+  #focusBar { position: absolute; top: 8px; left: 50px; z-index: 7; display: none; gap: 8px; align-items: center; background: #0b1220d9; border: 1px solid var(--line); border-radius: 10px; padding: 5px 10px; font-size: 13px; }
+  #focusBar button { padding: 2px 8px; font-size: 12px; } #focusBar b { font: 700 15px ui-monospace, monospace; }
+  #measure { position: absolute; left: 50px; bottom: 40px; z-index: 7; background: #0b1220e6; border: 1px solid #facc15; color: #fde68a; border-radius: 8px; padding: 4px 9px; font-size: 12.5px; }
+  body.focus { overflow: hidden; } body.focus .chartbox { position: fixed; inset: 0; z-index: 75; background: #0b1220; }
+  body.focus .ctool { display: none; } body.focus #lw { height: 100vh !important; } body.focus .dtools { border-radius: 0; height: 100vh; } body.focus #focusBar { display: flex; }
+  .fav { cursor: pointer; color: #facc15; } #favBtn { font-size: 18px; padding: 4px 10px; color: #facc15; }
+  .mk { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; }
+  .mk .box table td { cursor: pointer; } .mk .box table tr:hover td { background: #1e293b; }
+  .sbrow { display: flex; gap: 6px; align-items: center; margin: 4px 0; flex-wrap: wrap; } .sbrow select, .sbrow input { padding: 5px 6px; font-size: 13px; }
   #cmenu { position: fixed; z-index: 90; background: #111827; border: 1px solid #374151; border-radius: 10px; padding: 6px 0; min-width: 300px; box-shadow: 0 12px 34px #000c; font-size: 13.5px; }
   #cmenu div.i { display: flex; justify-content: space-between; gap: 18px; padding: 7px 16px; cursor: pointer; } #cmenu div.i:hover { background: #1f2937; }
   #cmenu div.i small { color: var(--mut); } #cmenu hr { border: 0; border-top: 1px solid #374151; margin: 5px 0; }
@@ -94,6 +110,7 @@
 
   <div class="bar">
     <label>Market<select id="sym"></select></label>
+    <button id="favBtn" title="Add / remove this market from your favourites">☆</button>
     <label id="otherWrap">Other coin<input id="symOther" placeholder="e.g. PEPEUSDT" style="width:120px"></label>
     <label>Timeframe<select id="tf"><option value="1s">⚡ Live (1-second candles)</option><option value="1m">M1 (1 min)</option><option value="3m">M3 (3 min)</option>
       <option value="5m">M5 (5 min)</option><option value="15m">M15 (15 min)</option><option value="30m">M30 (30 min)</option><option value="1h" selected>H1 (1 hour)</option>
@@ -109,13 +126,24 @@
   <div class="price"><b id="px">…</b><span id="chg"></span><span id="bias"></span><span class="mut" id="src"></span></div>
   <div class="inds" id="inds"></div>
   <div class="chartbox" id="chartbox">
-    <div class="ctool"><button id="cSize">⤢ Bigger chart</button><button id="cFull">⛶ Full screen</button><button id="cFit">⇔ Latest bars</button></div>
-    <div class="chart" id="lw"></div>
+    <div class="ctool"><button id="cSize">⤢ Bigger chart</button><button id="cFull">⛶ Full screen</button><button id="cFocus">🖥️ Focus view (F)</button><button id="cFit">⇔ Latest bars</button></div>
+    <div class="crow">
+      <div class="dtools" id="dtools">
+        <button data-tool="cursor" class="on" title="Cursor">✛</button><button data-tool="trend" title="Trend line (2 clicks)">╱</button>
+        <button data-tool="hline" title="Horizontal line (1 click)">―</button><button data-tool="fib" title="Fibonacci retracement (2 clicks)">𝐅</button>
+        <button data-tool="measure" title="Measure: price change, % and bars (2 clicks)">📏</button><button data-tool="text" title="Text note (1 click)">T</button><hr>
+        <button data-tool="hide" title="Hide / show my drawings">👁</button><button data-tool="del" title="Delete my drawings on this market">🗑</button>
+      </div>
+      <div class="chart" id="lw"></div>
+    </div>
+    <div class="scalebtn"><button id="scA" title="Auto-scale the price axis">A</button><button id="scL" title="Logarithmic price axis">L</button></div>
+    <div id="focusBar"><span id="fbName"></span><b id="fbPx"></b><span id="fbChg"></span><span id="fbTf"></span><button id="fbExit">✕ Exit (Esc)</button></div>
+    <div id="measure" class="hide"></div>
   </div>
   <div class="note" id="live">connecting to the live feed…</div>
 
   <div class="tabs">
-    <button data-t="sig" class="on">📈 Signals</button><button data-t="bt">🧪 Backtest</button>
+    <button data-t="sig" class="on">📈 Signals</button><button data-t="mk">🔥 Market</button><button data-t="bt">🧪 Backtest</button><button data-t="sb">🛠️ My strategies</button>
     <button data-t="pt">🤖 Practice trading</button><button data-t="live" id="tabLive" class="hide">⚡ Live trading (PC)</button><button data-t="st">🖱️ Screen Trader</button><button data-t="help">❓ Help</button>
   </div>
 
@@ -239,6 +267,35 @@
     <div id="lvLog" style="background:#020617;border-radius:8px;padding:8px;font:12px ui-monospace,monospace;max-height:220px;overflow:auto;margin-top:10px"></div>
   </div>
 
+  <!-- ===================== Market overview -->
+  <div class="pane hide" id="t_mk">
+    <div class="row" style="margin-bottom:8px"><button class="pri" id="mkRefresh">↻ Refresh</button><span class="note" id="mkNote" style="margin:0"></span></div>
+    <div class="mk" id="mkGrid"></div>
+    <div class="box" style="margin-top:10px"><h3>🎯 Signal scanner: where is there a trade right now?</h3>
+      <div class="row"><label>Markets<select id="scWhat"><option value="20">top 20 by volume</option><option value="40">top 40 by volume</option><option value="fav">my favourites</option></select></label>
+        <label>Strategies<select id="scStrat"></select></label><button class="pri" id="scGo">Scan now</button></div>
+      <div class="note">Checks every market on this chart's timeframe for a signal on the last closed candle and backtests it there. Only <b>PASS</b> markets are worth a closer look.</div>
+      <div class="scroll"><table id="scTable"></table></div></div>
+    <div class="box" style="margin-top:10px"><h3 id="newsTitle">📰 News</h3><div id="news" class="mut">loading…</div>
+      <div class="note">Headlines from the web (CoinDesk for crypto, FXStreet for forex and commodities). News can move prices fast: be careful around big announcements.</div></div>
+  </div>
+  <!-- ===================== Strategy builder -->
+  <div class="pane hide" id="t_sb">
+    <div class="grid">
+      <div class="box"><h3>🛠️ Build a strategy</h3>
+        <div class="sbrow"><label>Name<input id="sbName" style="width:220px" placeholder="e.g. RSI dip in up-trend"></label>
+          <label>Stop (× ATR)<input type="number" id="sbSl" step="0.1" value="1.5" style="width:80px"></label><label>Target (× stop)<input type="number" id="sbRr" step="0.1" value="2" style="width:80px"></label></div>
+        <h3 style="margin-top:10px">BUY when <span class="mut" style="font-weight:400;font-size:12px">(all must be true)</span></h3><div id="sbBuy"></div><button id="sbAddBuy">+ condition</button>
+        <h3 style="margin-top:10px">SELL when <span class="mut" style="font-weight:400;font-size:12px">(all must be true; leave empty for buy only)</span></h3><div id="sbSell"></div><button id="sbAddSell">+ condition</button>
+        <div class="row" style="margin-top:12px"><button class="pri" id="sbSave">💾 Save &amp; test on this chart</button><button id="sbNew">New</button>
+          <select id="sbTpl"><option value="">Start from an example…</option></select></div>
+        <div class="note" id="sbMsg"></div></div>
+      <div class="box"><h3>My strategies</h3><div id="sbList"></div>
+        <div class="note">Saved strategies appear everywhere the built-in ones do: chart signals, backtest, alerts, practice auto trading and the Screen Trader
+          (send one to a platform from the 🖱️ Screen Trader tab). The PC live engine uses the 5 built-in strategies only.</div>
+        <div id="sbResult" style="margin-top:8px"></div></div>
+    </div>
+  </div>
   <!-- ===================== Screen Trader hand-off -->
   <div class="pane hide" id="t_st">
     <div id="stStatus" class="note" style="margin-top:0"></div>
@@ -276,6 +333,11 @@
         and forex/gold through <b>MetaTrader 5 on a DEMO account</b>: choose the market, press Save, then use Manual or Start auto.
         For MT5, set "Prices from" to MetaTrader 5 so the chart shows your broker's own prices.</li>
       <li><b>Timeframes</b>: ⚡ Live = 1-second candles (crypto), then 1, 3, 5, 15, 30 minutes, 1 and 4 hours, 1 day. Very short timeframes are noisy: backtest before trusting them.</li>
+      <li><b>⭐ Favourites</b>: press ☆ next to the market list (or the star in search) - favourites sit at the top of the market list and the side panel, for both Crypto and Forex.</li>
+      <li><b>🖥️ Focus view</b> (key <b>F</b>): the chart fills the whole screen with only the price and quick timeframes; Esc to leave. <b>A</b> / <b>L</b> under the price axis: auto-scale and log scale.</li>
+      <li><b>Drawing tools</b> (left of the chart): trend line, horizontal line, Fibonacci, measure, text note, hide, delete. Drawings are saved per market and timeframe.</li>
+      <li><b>🔥 Market</b>: best and worst performers, most traded, most risky (biggest swings), coins Binance is removing, a signal scanner, and news.</li>
+      <li><b>🛠️ My strategies</b>: build your own rules (e.g. "close above EMA 200 and RSI crosses above 30"), backtest them, practise them, and let auto trade them.</li>
       <li><b>Right-click the chart</b> (or long-press on a phone): reset the view, copy the price, add an alert there, place a practice
         buy/sell order at that price (limit or stop, chosen for you), draw a line, full screen, settings. Keys: Alt+R reset, Alt+A alert at the mouse price.</li>
       <li><b>🔎 Search</b> (top, or press <b>/</b>): find any Binance coin, forex pair, metal or energy market by name or symbol, e.g. "sol", "gold", "oil", "lira".
@@ -311,7 +373,7 @@
       <div class="row" style="margin-top:6px"><button id="alPerm">Turn on pop-up notifications</button></div>
       <div id="alList" style="margin-top:6px"></div>
       <div class="note">Alerts work while this page is open (sound + pop-up). Click the chart price to fill the box.</div></div>
-    <div class="sbox" id="sWatch"><h3>👀 Markets</h3><div id="watch" class="mut">loading…</div></div>
+    <div class="sbox" id="sWatch"><h3>👀 Markets <span class="mut" style="font-weight:400;font-size:12px">⭐ = favourites</span></h3><div id="watch" class="mut">loading…</div></div>
   </aside>
   </div>
   <div id="toast"></div>
