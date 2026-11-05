@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.4.0
+// @version      2.5.0
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -37,7 +37,7 @@
   const DEF = { button: "differ", pick: 0, duration: "5t", stakeSet: 1, autoSetup: true,
                 trigger: "0", inRow: 1, maxTrades: 10, maxMinutes: 20, cooldown: 2,
                 maxStake: 10, stopLoss: 20, takeProfit: 20, allowReal: false, live: false };
-  DEF.strategy = "custom"; DEF.tab = "auto";
+  DEF.strategy = "custom"; DEF.tab = "auto"; DEF.autoStake = 1;
 
   // Ready-made strategies: picking one fills in every setting below (you can still change them).
   // Safe defaults for all: $1 stake, stop-loss $10, take-profit $10, max stake $5, LIVE clicks on.
@@ -306,7 +306,7 @@
    <details><summary>Easiest: pick a strategy</summary><div><ol>
     <li>Open the game (Manual Trader) on <b>DEMO</b>.</li>
     <li>Open the <b>⚡ Auto</b> tab and choose a <b>Strategy</b>. All settings are filled in for you
-        ($1 stake, stop-loss $10, take-profit $10, LIVE clicks on).</li>
+        (LIVE clicks on). Set <b>Stake per trade</b>: stop-loss and take-profit become 10 × stake.</li>
     <li>Press <b>Start</b>, check the summary and press OK. The bot sets up the game and trades by itself
         until a limit is reached. <b>Stop</b> stops at once.</li>
    </ol><p>Changing a setting afterwards switches to <b>Custom</b> (your own settings).</p></div></details>
@@ -394,6 +394,8 @@
      <select id="f_strategy"><option value="custom">Custom – my own settings</option>${
       [...new Set(STRATEGIES.map(s => s.group))].map(g => `<optgroup label="${g}">` +
         STRATEGIES.filter(s => s.group === g).map(s => opt(s.id, s.name)).join("") + "</optgroup>").join("")}</select></label>
+    <label>Stake per trade ($)<input id="f_autoStake" type="number" min="0.35" step="0.01" inputmode="decimal"></label>
+    <div class="tip" style="grid-column:auto;align-self:end">Stop-loss and take-profit = 10 × stake, max stake = stake.</div>
     <div class="odds" id="mdbStratDesc"></div>
     <div class="odds" id="mdbOdds2"></div>
    </div>
@@ -466,10 +468,25 @@
     const st = strategyById(el.value);
     S.strategy = el.value;
     if (st) {
-      Object.assign(S, SAFE, st.set);
-      fillForm();
+      applyStrategy(st);
       log(`strategy: ${st.name} - settings filled in. Check the account is DEMO, then press Start.`, "ok");
     }
+    save(); refreshForm();
+  });
+  const r2 = x => Math.round(x * 100) / 100;
+  function applyStrategy(st) {
+    const k = +S.autoStake > 0 ? +S.autoStake : 1;
+    Object.assign(S, SAFE, st.set, { stakeSet: r2(k), maxStake: r2(k), stopLoss: r2(10 * k), takeProfit: r2(10 * k) });
+    fillForm();
+  }
+  $("f_autoStake").value = S.autoStake;
+  $("f_autoStake").addEventListener("change", () => {
+    const el = $("f_autoStake"), v = parseFloat(el.value);
+    if (running || busy) { log("Stop the bot before changing the stake.", "warn"); el.value = S.autoStake; return; }
+    if (!(v >= 0.35)) { log("The smallest stake is $0.35.", "warn"); el.value = S.autoStake; return; }
+    S.autoStake = r2(v); el.value = S.autoStake;
+    const st = strategyById(S.strategy);
+    if (st) { applyStrategy(st); log(`stake $${S.autoStake}: stop-loss $${S.stopLoss}, take-profit $${S.takeProfit}`, "ok"); }
     save(); refreshForm();
   });
   function refreshForm() {
