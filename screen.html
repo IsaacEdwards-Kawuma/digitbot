@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DigitBot Screen Trader – install</title>
+<style>
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; max-width: 700px; margin: 0 auto; padding: 16px; line-height: 1.5; color: #1a1a1a; background: #fafafa; }
+  h1 { font-size: 1.5rem; margin-bottom: 4px; } h2 { font-size: 1.1rem; margin-top: 26px; }
+  .card { background: #fff; border: 1px solid #ddd; border-radius: 10px; padding: 14px 16px; margin: 12px 0; }
+  .warn { background: #fff7ed; border-color: #fdba74; } .ok { background: #f0fdf4; border-color: #86efac; }
+  a.btn { display: inline-block; padding: 10px 18px; background: #16a34a; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600; }
+  table { border-collapse: collapse; width: 100%; font-size: 14px; } td, th { border-bottom: 1px solid #e5e7eb; padding: 6px; text-align: left; vertical-align: top; }
+  ol { padding-left: 20px; } li { margin: 5px 0; } small, .mut { color: #555; } code { background: #eef2f7; padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<a href="./" style="color:#0b7c8c;text-decoration:none">← DigitBot home</a>
+<h1>🖱️ DigitBot Screen Trader</h1>
+<small>Works like the MMG bot: it sits on the trading website, reads the price from the screen, and clicks Buy / Sell / Close for you,
+with the take-profit and stop-loss typed in. No API keys needed. For PC browsers (Chrome, Edge, Firefox).</small>
+
+<div class="card ok"><b>Two ways to trade, your choice:</b>
+  <table>
+    <tr><th></th><th>🖱️ Screen mode (this page)</th><th>🔌 API mode (DigitBot.exe)</th></tr>
+    <tr><td>How</td><td>Reads the page and clicks the buttons, like you would</td><td>Talks to Binance / MetaTrader 5 directly</td></tr>
+    <tr><td>Where</td><td>Binance website, TradingView (paper trading or your connected broker), MetaTrader 5 Web</td><td>Binance Spot/Futures, MetaTrader 5 desktop</td></tr>
+    <tr><td>Needs</td><td>Tampermonkey + the trading page open</td><td>The PC app (+ testnet keys for Binance)</td></tr>
+    <tr><td>Reliability</td><td>Good, but a website redesign can move buttons (then press <b>Teach</b> again)</td><td>Best: stop-loss always placed by the exchange</td></tr>
+  </table>
+</div>
+
+<h2>1. Install (once)</h2>
+<div class="card"><ol>
+  <li>Install <b>Tampermonkey</b> for your browser (Chrome Web Store / Edge Add-ons / Firefox Add-ons).</li>
+  <li>Click <a class="btn" href="screen-trader.user.js">Install Screen Trader</a> and press <b>Install</b> in Tampermonkey.
+    <br><small>Chrome/Edge: also turn on "Allow user scripts" (or Developer mode) for Tampermonkey in the extensions page.</small></li>
+  <li>Open a supported page. The <b>DigitBot Screen Trader</b> panel appears on the right. Updates arrive automatically.</li>
+</ol>
+<small>Pages: <code>binance.com/…/futures/…</code> and <code>/trade/…</code> (spot), <code>demo.binance.com</code>, <code>tradingview.com/chart</code>,
+<code>web.metatrader.app</code>, <code>trade.mql5.com</code>. (Binance blocks bookmarklets, so use Tampermonkey.)</small></div>
+
+<h2>2. First run: practice clicks</h2>
+<div class="card"><ol>
+  <li>Log in to a <b>demo / paper</b> account: Binance <b>Demo Trading</b>, TradingView <b>Paper Trading</b>, or an MT5 <b>demo</b> account in MT5 Web.</li>
+  <li>On Binance set leverage to <b>3x or less</b> (the bot refuses above 3x).</li>
+  <li>Panel › <b>🎯 Setup</b> › <b>Test all</b>: yellow boxes show what the bot found. Anything with ✗ or a box on the wrong thing:
+    press <b>Teach</b> next to it and click that thing on the page. (Your click is caught, nothing is traded.)</li>
+  <li>On Binance tick <b>TP/SL</b> once so the take-profit / stop-loss boxes show, then check them with <b>Show</b>.</li>
+  <li><b>✋ Manual › BUY</b>: with <b>Practice clicks</b> ON (the default) the bot only highlights each step. When every highlight is right,
+    turn Practice clicks OFF in <b>⚙️ Settings</b> and try one small demo trade.</li>
+  <li><b>🤖 Auto</b>: pick the timeframe and strategy. It runs the backtest first and only trades a strategy that PASSES
+    (an untested one only on demo, if you tick it). Keep the tab open; it acts when each candle closes.</li>
+</ol></div>
+
+<h2>What it does on every trade</h2>
+<div class="card"><ul>
+  <li>Size from your <b>risk %</b> (balance read from the page on Binance, or typed in Settings). Choose whether the size box is in coins, USDT or lots.</li>
+  <li>Types the <b>take-profit and stop-loss</b> into the platform with the order, so the platform protects it even if your PC sleeps.
+    It <b>refuses to trade</b> if it can't find the stop-loss box.</li>
+  <li>Then it moves its own stop to <b>break-even</b> at +1R and <b>trails</b> it, and clicks <b>Close</b> when that is hit.</li>
+  <li>Checks the position really opened (Binance "Positions(n)"); if not, it stops auto and warns you.</li>
+  <li>Daily loss limit, max trades per day, one trade at a time, max 3x leverage. REAL money needs you to type <b>I UNDERSTAND</b>.</li>
+  <li>Forex on TradingView / MT5 Web: history comes from Binance's matching pairs (EUR/USDT, GBP/USDT, AUD/USDT, PAXG for gold) and the live price from your screen.</li>
+</ul></div>
+
+<div class="card warn"><b>Honest notes:</b> screen bots depend on the page layout. If a site changes, the bot may not find a button; it then
+refuses and tells you, and you press Teach again. Keep the tab visible and the PC awake. Results shown in the panel are estimates from the screen
+price; the platform's own history is the true record. No strategy has passed the backtest on the markets tested so far, so expect Auto to refuse
+most of the time. Most traders lose money, and leverage makes losses fast. Nothing here is financial advice.</div>
+</body>
+</html>
