@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.11.0
+// @version      2.11.1
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -182,11 +182,21 @@
     }
     return null;
   }
-  function isDemo() {
-    // only the game's own badge counts - never the bot's panel, which shows "DEMO" itself
+  // The game's DEMO badge (next to the balance, or "DEMO WALLET" on the Auto Trader page). Any small element counts,
+  // because the site changes its markup; the bot's own panel (which shows "DEMO" itself) never counts.
+  function demoBadge() {
     const mine = document.getElementById("mdb");
-    return [...document.querySelectorAll("span")].some(s => !(mine && mine.contains(s)) && visible(s) && /^demo$/i.test(txt(s)));
+    for (const el of document.querySelectorAll("span,div,small,p,b,strong,em,i,label,button,a,sup,mark")) {
+      if (mine && mine.contains(el)) continue;
+      const t = txt(el); if (!t || t.length > 16) continue;
+      if (/^(demo|demo wallet|demo account|practice)$/i.test(t) && visible(el)) return el;
+    }
+    return null;
   }
+  let lastDemoSeen = 0;
+  function isDemo() { if (demoBadge()) { lastDemoSeen = Date.now(); return true; } return false; }
+  const noDemoMsg = () => `I can't see the game's DEMO badge, so this counts as a REAL account. Open the Manual Trader page ` +
+    `(the DEMO badge sits next to your balance at the top), or tick Allow REAL if it really is real money.`;
   function openTrades() {   // "Open (2)" tab of the predictions list
     for (const el of document.querySelectorAll("button, div, span, a")) {
       const m = /^Open\s*\((\d+)\)$/.exec(txt(el));
@@ -752,7 +762,7 @@
     if (S.mode !== "manual" && !strategyById(S.strategy)) { log("Pick a strategy first (or use the Manual tab).", "warn"); return; }
     const demo = isDemo(), bal = balance();
     { const why = dayBlock(0); if (why) { log(why, "warn"); return; } }
-    if (!demo && !S.allowReal) { log("This is a REAL account. Tick 'Allow REAL' first (or switch to DEMO).", "warn"); return; }
+    if (!demo && !S.allowReal) { log(noDemoMsg(), "warn"); return; }
     if (!circleRow() || !priceText()) { log("Can't find the digit circles / price. Open the Manual Trader page.", "warn"); return; }
     if (bal == null) { log("Can't read your balance - not starting.", "warn"); return; }
     if (openTrades()) { log("Wait until your open trades have finished, then press Start.", "warn"); return; }
@@ -837,7 +847,7 @@
   async function tradeOnce() {
     if (running || busy) { log("The bot is running - press Stop first, then trade by hand.", "warn"); return; }
     const demo = isDemo();
-    if (!demo && !S.allowReal) { log("This is a REAL account. Tick 'Allow REAL' first (or switch to DEMO).", "warn"); return; }
+    if (!demo && !S.allowReal) { log(noDemoMsg(), "warn"); return; }
     if (!circleRow() || !priceText()) { log("Can't find the game. Open the Manual Trader page.", "warn"); return; }
     busy = true; $("mdbOnce").disabled = true;
     try {
@@ -1256,7 +1266,7 @@
   function rbStart() {
     if (RB.on) return; if (running || busy) return log("Stop the main bot first (one bot at a time).", "warn");
     const c = BS.cur, demo = isDemo();
-    if (!demo && (c.wallet !== "real" || !S.allowReal)) return log("This is a REAL account: set Wallet to 'real allowed' AND tick Allow REAL in Manual (or switch to DEMO).", "warn");
+    if (!demo && (c.wallet !== "real" || !S.allowReal)) return log(noDemoMsg() + " (For real money in Rounds also set Wallet to 'real allowed'.)", "warn");
     if (!circleRow() || !priceText()) return log("Can't find the game. Open the Manual Trader page.", "warn");
     if (openTrades()) return log("Wait until your open trades have finished.", "warn");
     { const why = dayBlock(0); if (why) return log(why, "warn"); }
