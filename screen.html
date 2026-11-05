@@ -24,7 +24,7 @@ with the take-profit and stop-loss typed in. No API keys needed. For PC browsers
   <table>
     <tr><th></th><th>🖱️ Screen mode (this page)</th><th>🔌 API mode (DigitBot.exe)</th></tr>
     <tr><td>How</td><td>Reads the page and clicks the buttons, like you would</td><td>Talks to Binance / MetaTrader 5 directly</td></tr>
-    <tr><td>Where</td><td>Binance website, TradingView (paper trading or your connected broker), MetaTrader 5 Web</td><td>Binance Spot/Futures, MetaTrader 5 desktop</td></tr>
+    <tr><td>Where</td><td>Binance website, TradingView (paper trading or your connected broker), MetaTrader 5 Web, Trade Republic (signals only: it has no demo account)</td><td>Binance Spot/Futures, MetaTrader 5 desktop</td></tr>
     <tr><td>Needs</td><td>Tampermonkey + the trading page open</td><td>The PC app (+ testnet keys for Binance)</td></tr>
     <tr><td>Reliability</td><td>Good, but a website redesign can move buttons (then press <b>Teach</b> again)</td><td>Best: stop-loss always placed by the exchange</td></tr>
   </table>
@@ -63,6 +63,11 @@ with the take-profit and stop-loss typed in. No API keys needed. For PC browsers
   <li>Daily loss limit, max trades per day, one trade at a time, max 3x leverage. REAL money needs you to type <b>I UNDERSTAND</b>.</li>
   <li>Forex on TradingView / MT5 Web: history comes from Binance's matching pairs (EUR/USDT, GBP/USDT, AUD/USDT, PAXG for gold) and the live price from your screen.</li>
 </ul></div>
+
+<h2>Start from the DigitBot chart</h2>
+<div class="card">On the Forex or Crypto page open the <b>🖱️ Screen Trader</b> tab, pick the platform and strategy, and press <b>Open &amp; start</b>.
+The platform opens on the same market and the Screen Trader takes the same timeframe and strategy, so its signals match the chart.
+<b>Signals only</b> (⚙️ Settings, always on for Trade Republic): the bot never clicks; it announces each signal with entry, stop-loss and take-profit (sound + pop-up).</div>
 
 <h2>Panel disappeared?</h2>
 <div class="card"><ul>

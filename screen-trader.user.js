@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         DigitBot Screen Trader
 // @namespace    digitbot.local
-// @version      1.0.2
+// @version      1.1.0
 // @description  Reads the price on Binance, TradingView and MetaTrader 5 Web, finds signals with the DigitBot strategies, and clicks Buy / Sell / Close for you (with stop-loss and take-profit). Demo / paper accounts first.
 // @match        https://www.binance.com/*
 // @match        https://demo.binance.com/*
@@ -10,10 +10,15 @@
 // @match        https://*.tradingview.com/*
 // @match        https://web.metatrader.app/*
 // @match        https://trade.mql5.com/*
+// @match        https://app.traderepublic.com/*
+// @match        https://traderepublic.com/*
+// @match        https://isaacedwards-kawuma.github.io/digitbot/*
+// @match        http://127.0.0.1:8770/*
 // @require      https://isaacedwards-kawuma.github.io/digitbot/engine.js
 // @grant        GM_xmlhttpRequest
 // @grant        GM_getValue
 // @grant        GM_setValue
+// @grant        GM_notification
 // @connect      data-api.binance.vision
 // @connect      fapi.binance.com
 // @run-at       document-idle
@@ -28,16 +33,27 @@
    I UNDERSTAND; leverage above 3x refused; daily loss limit; it refuses to trade without a platform stop-loss box. */
 (function () {
   "use strict";
+  // ---- on the DigitBot trading page: only a bridge. The page says "start the Screen Trader on <platform> with these settings";
+  //      we keep it in Tampermonkey's storage (shared by all sites) and the platform page picks it up.
+  if (/github\.io$|^127\.0\.0\.1$/.test(location.hostname)) {
+    const mark = () => { document.documentElement.dataset.dbst = "1.1.0"; };
+    mark(); new MutationObserver(mark).observe(document.documentElement, { attributes: true, attributeFilter: ["data-dbst"] });
+    window.addEventListener("dbst-handoff", e => {
+      try { const h = JSON.parse(e.detail); h.t = Date.now(); if (typeof GM_setValue === "function") GM_setValue("handoff", h); else localStorage.setItem("dbst.handoff", JSON.stringify(h));
+            window.dispatchEvent(new CustomEvent("dbst-ack", { detail: "ok" })); } catch (x) { console.error(x); }
+    });
+    return;
+  }
   if (window.top !== window.self || document.getElementById("dbst")) return;
   const E = (typeof Engine !== "undefined" && Engine) || window.Engine;
-  const VER = "1.0.2";
+  const VER = "1.1.0";
 
   // ---------------------------------------------------------------- storage (per site)
   const HOST = location.hostname.replace(/^www\./, "");
   const gget = (k, d) => { try { if (typeof GM_getValue === "function") return GM_getValue(k, d); } catch (e) {} try { const v = localStorage.getItem("dbst." + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } };
   const gset = (k, v) => { try { if (typeof GM_setValue === "function") return GM_setValue(k, v); } catch (e) {} try { localStorage.setItem("dbst." + k, JSON.stringify(v)); } catch (e) {} };
   const DEF = { tf: "1h", strategy: "ema_pullback", risk: 1, balance: 1000, dayLoss: 3, maxDay: 6, slAtr: 1.5, rr: 2, be: 1, trail: 2,
-                maxLev: 3, practice: true, account: "demo", realOk: false, sizeUnit: "coin", needTpSl: true, untested: false };
+                maxLev: 3, practice: true, signalsOnly: false, account: "demo", realOk: false, sizeUnit: "coin", needTpSl: true, untested: false };
   let S = Object.assign({}, DEF, gget("set." + HOST, {}));
   const saveS = () => gset("set." + HOST, S);
   let TEACH = gget("teach." + HOST, {});
@@ -71,6 +87,12 @@
       demo: () => /\bdemo\b/i.test(textOf(document.querySelector("[class*=account]")) || ""),
       words: { buy: ["Buy by Market", "Buy"], sell: ["Sell by Market", "Sell"], market: [], tpsl: [], close: ["Close", "Close position"], confirm: ["OK", "Confirm"] },
       sizeRe: /volume|lots?/i, tpRe: /take.?profit|^tp$/i, slRe: /stop.?loss|^sl$/i,
+      openCount: () => null, leverage: () => null, balance: () => null },
+    // Trade Republic has NO demo account: every order would be real money, so the bot never clicks there - it gives signals
+    traderepublic: { name: "Trade Republic", test: () => /traderepublic/.test(HOST), signalsOnly: true,
+      symbol: () => null, price: () => NaN, spot: () => false, demo: () => false,
+      words: { buy: ["Buy"], sell: ["Sell"], market: [], tpsl: [], close: [], confirm: [] },
+      sizeRe: /amount|quantity|shares/i, tpRe: /take.?profit/i, slRe: /stop/i,
       openCount: () => null, leverage: () => null, balance: () => null },
   };
   const SITE = Object.values(SITES).find(s => s.test()) || SITES.binance;
@@ -191,8 +213,12 @@
 
   // ---------------------------------------------------------------- prices + candles
   const TF_MS = { "15m": 9e5, "1h": 36e5, "4h": 144e5, "1d": 864e5 };
-  const PROXY = { EURUSD: "EURUSDT", GBPUSD: "GBPUSDT", AUDUSD: "AUDUSDT", XAUUSD: "PAXGUSDT", GOLD: "PAXGUSDT", BTCUSD: "BTCUSDT", ETHUSD: "ETHUSDT" };
-  const dataSym = s => { s = (s || "").replace(/[^A-Z0-9]/g, ""); if (PROXY[s]) return PROXY[s]; const b = s.replace(/(\.P|PERP)$/, ""); return /USDT$|USDC$|FDUSD$/.test(b) ? b : PROXY[b.slice(0, 6)] || null; };
+  const PROXY = { EURUSD: "EURUSDT", XAUUSD: "XAUUSDT", GOLD: "XAUUSDT", XAGUSD: "XAGUSDT", SILVER: "XAGUSDT", XPTUSD: "XPTUSDT", XPDUSD: "XPDUSDT",
+                  USOIL: "CLUSDT", WTI: "CLUSDT", CL1: "CLUSDT", NATGAS: "NATGASUSDT", NG1: "NATGASUSDT", COPPER: "COPPERUSDT", HG1: "COPPERUSDT",
+                  USDTRY: "USDTTRY", USDZAR: "USDTZAR", USDBRL: "USDTBRL", USDMXN: "USDTMXN", USDARS: "USDTARS", USDCOP: "USDTCOP", USDIDR: "USDTIDR", USDKZT: "USDTKZT",
+                  BTCUSD: "BTCUSDT", ETHUSD: "ETHUSDT" };
+  const FUT_ONLY = /^(XAU|XAG|XPT|XPD|CL|NATGAS|COPPER)USDT$/;           // these exist only on Binance Futures
+  const dataSym = s => { s = (s || "").toUpperCase().replace(/\.P$|PERP$/, "").replace(/[^A-Z0-9]/g, ""); if (PROXY[s]) return PROXY[s]; const b = s.replace(/(\.P|PERP)$/, ""); return /USDT$|USDC$|FDUSD$/.test(b) ? b : PROXY[b.slice(0, 6)] || null; };
   function getJSON(url) {
     return new Promise((res, rej) => {
       if (typeof GM_xmlhttpRequest === "function") GM_xmlhttpRequest({ method: "GET", url, timeout: 20000, onload: r => { try { res(JSON.parse(r.responseText)); } catch (e) { rej(e); } }, onerror: rej, ontimeout: rej });
@@ -209,7 +235,7 @@
     try { await loadHistory2(ds, key); } finally { histBusy = false; }
   }
   async function loadHistory2(ds, key) {
-    const fut = !SITE.spot() && SITE === SITES.binance;
+    const fut = FUT_ONLY.test(ds) || (!SITE.spot() && SITE === SITES.binance && !/^USDT/.test(ds));
     const base = fut ? "https://fapi.binance.com/fapi/v1/klines" : "https://data-api.binance.vision/api/v3/klines";
     let all = [], end = null;
     for (let k = 0; k < 3; k++) {
@@ -257,6 +283,14 @@
   const fp = v => +(+v).toPrecision(7);
   let busy = false;
   async function enter(side, sig, why) {
+    if (sigOnly()) {                                         // no clicking: announce the trade with its stop and target
+      if (!B || !(px > 0)) return log("no price yet");
+      const ci = closedIdx(), slD = sig ? Math.abs(B.c[ci] - sig.sl) * ratio : B.atr[ci] * S.slAtr * ratio, tpD = sig ? Math.abs(sig.tp - B.c[ci]) * ratio : slD * S.rr;
+      const sl = side === "buy" ? px - slD : px + slD, tp = side === "buy" ? px + tpD : px - tpD;
+      announce(`${side.toUpperCase()} signal ${symbol()} ${S.tf}`, `around ${fp(px)} · stop-loss ${fp(sl)} · take-profit ${fp(tp)} · risk ${S.risk}% → ${sizeFor(px, sl)} ${S.sizeUnit === "lots" ? "lots" : S.sizeUnit === "quote" ? "in money" : "units"} · ${why}`);
+      ST.hist.push({ t: Date.now(), exitT: Date.now(), sym: symbol(), side, entry: px, exit: px, pl: 0, plEst: 0, reason: "signal only", strat: sig ? S.strategy : "manual", practice: true });
+      ST.hist = ST.hist.slice(-300); saveST(); render(); return true;
+    }
     if (busy) return; const no = blockers(side);
     if (no) { log("not traded: " + no); return false; }
     busy = true;
@@ -327,7 +361,8 @@
     const res = E.backtestAll(B, params(), B.c[B.n - 1] * (SITE === SITES.binance ? 0.0008 : 0.0003), S.risk).find(r => r.name === S.strategy);
     const pf = s => s.trades ? Math.min(s.profit_factor, 99).toFixed(2) : "-";
     log(`backtest ${E.STRATEGIES[S.strategy].name} on ${symbol()} ${S.tf}: ${res.pass ? "PASS" : "fail"} - TRAIN ${res.train.trades} trades PF ${pf(res.train)}, TEST ${res.test.trades} trades PF ${pf(res.test)}`);
-    if (!res.pass && (isReal() || !S.untested)) return log("auto not started: this strategy did not PASS here" + (isReal() ? "" : " (tick 'practise untested' to try it on demo)"));
+    if (!res.pass && sigOnly()) log("signals only: it will announce signals anyway - this strategy did NOT pass here, so treat them with care");
+    else if (!res.pass && (isReal() || !S.untested)) return log("auto not started: this strategy did not PASS here" + (isReal() ? "" : " (tick 'practise untested' to try it on demo)"));
     auto = { sym: symbol(), tf: S.tf, strat: S.strategy, passed: res.pass }; lastClosed = B.t[closedIdx()];
     log(`AUTO ON: ${E.STRATEGIES[S.strategy].name} on ${auto.sym} ${auto.tf}. It acts when a candle closes. Keep this tab open.`); render();
   }
@@ -376,6 +411,12 @@
   let tab = "auto", logs = [];
   function log(m) { const l = new Date().toTimeString().slice(0, 8) + " " + m; logs.push(l); logs = logs.slice(-120); console.log("[DigitBot Screen]", m); const L = P.querySelector(".log"); if (L) { L.innerHTML = logs.map(x => `<div>${esc(x)}</div>`).join(""); L.scrollTop = 1e9; } }
   const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const sigOnly = () => !!(SITE.signalsOnly || S.signalsOnly);
+  function announce(title, body) {                        // sound + desktop pop-up (works on any site)
+    beep(880); setTimeout(() => beep(1175), 220); log("🔔 " + title + " - " + body);
+    try { if (typeof GM_notification === "function") GM_notification({ title: "DigitBot: " + title, text: body, timeout: 30000 });
+          else if (window.Notification && Notification.permission === "granted") new Notification("DigitBot: " + title, { body }); } catch (e) {}
+  }
   function beep(f) { try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.frequency.value = f; g.gain.value = 0.06; o.connect(g); g.connect(a.destination); o.start(); setTimeout(() => { o.stop(); a.close(); }, 180); } catch (e) {} }
   function render() {
     const lev = SITE.leverage(), demo = SITE.demo(), oc = SITE.openCount(), p = ST.pos;
@@ -385,17 +426,21 @@
       <div>clicks<b>${S.practice ? '<span style="color:#facc15">PRACTICE</span>' : '<span class="ok">REAL CLICKS</span>'}</b></div>
       <div>leverage<b>${lev ? (lev > S.maxLev ? `<span class="bad">${lev}x</span>` : lev + "x") : "–"}</b></div>
       <div>bot trade<b>${p ? `${p.side.toUpperCase()} ${fp(p.entry)}` : "none"}</b></div><div>today<b>${todayPL().toFixed(2)}</b></div></div>`;
-    const warn = (S.practice ? `<div class="warn">PRACTICE CLICKS is on: the bot only highlights what it would click. Check every highlight lands on the right box, then switch it off in Settings.</div>` : "") +
+    const warn = (sigOnly() ? `<div class="warn" style="border-color:#0ea5b7;color:#7dd3fc;background:#082f49">SIGNALS ONLY${SITE.signalsOnly ? ` (${SITE.name} has no demo account, so the bot never clicks here)` : ""}: it announces each signal with its stop-loss and take-profit (sound + pop-up). You place the order yourself.</div>` +
+        (!symbol() ? `<div class="warn">Type the market in 🎯 Setup › "Market name", e.g. BTCUSD, ETHUSD, EURUSD, XAUUSD (gold). Prices come from Binance.</div>` : "") : "") +
+      (!sigOnly() && S.practice ? `<div class="warn">PRACTICE CLICKS is on: the bot only highlights what it would click. Check every highlight lands on the right box, then switch it off in Settings.</div>` : "") +
       (lev > S.maxLev ? `<div class="warn">Leverage on the page is ${lev}x. The bot refuses to trade above ${S.maxLev}x - change it on the platform.</div>` : "") +
-      (!(px > 0) ? `<div class="warn">Can't read the price. Setup › Teach › "Price on the page" and click the price.</div>` : "");
+      (!(px > 0) && !sigOnly() ? `<div class="warn">Can't read the price. Setup › Teach › "Price on the page" and click the price.</div>` : "");
     let body = "";
     if (tab === "auto") body = `
       <label>Timeframe<select data-s="tf">${Object.keys(TF_MS).map(t => `<option ${t === S.tf ? "selected" : ""}>${t}</option>`).join("")}</select></label>
       <label>Strategy<select data-s="strategy">${Object.entries(E.STRATEGIES).map(([k, v]) => `<option value="${k}" ${k === S.strategy ? "selected" : ""}>${v.name}</option>`).join("")}</select></label>
       <label>Practise untested (demo only)<input type="checkbox" data-s="untested" ${S.untested ? "checked" : ""}></label>
-      <div class="row"><button class="pri" data-a="auto">${auto ? "■ Stop auto" : "▶ Start auto"}</button></div>
+      <div class="row"><button class="pri" data-a="auto">${auto ? "■ Stop" : sigOnly() ? "▶ Start signals" : "▶ Start auto"}</button></div>
       <div class="note">${auto ? `<b class="ok">AUTO ON</b> ${esc(E.STRATEGIES[auto.strat].name)} on ${esc(auto.sym)} ${auto.tf}${auto.passed ? " (PASSED its backtest)" : " (untested - demo practice)"}` : "Auto is off. It backtests first and only trades a strategy that PASSES."}</div>
       <div class="note">${B ? `Signal now: ${(() => { const s = E.signalAt(B, S.strategy, closedIdx(), params()); return s ? `<b class="${s.side === "buy" ? "ok" : "bad"}">${s.side.toUpperCase()}</b> - ${esc(s.why)}` : "none on the last closed candle"; })()} · ${esc(E.marketView(B).bias)}` : "loading history…"}</div>`;
+    else if (tab === "manual" && sigOnly()) body = `<div class="note">Signals only: press for a ready-made plan (entry, stop-loss, take-profit, size) to type into ${esc(SITE.name)} yourself.</div>
+      <div class="row"><button class="buy" data-a="buy">Plan a BUY</button><button class="sell" data-a="sell">Plan a SELL</button></div>`;
     else if (tab === "manual") body = `
       <div class="row"><button class="buy" data-a="buy">BUY / LONG</button><button class="sell" data-a="sell">SELL / SHORT</button></div>
       <div class="row"><button data-a="close">Close the bot's trade</button></div>
@@ -407,6 +452,7 @@
       <label>Market name (if not detected)<input data-s="symOverride" value="${esc(S.symOverride || "")}" placeholder="e.g. EURUSD"></label>
       <div class="row"><button data-a="test">Test all (practice highlights)</button></div>`;
     else if (tab === "set") body = `
+      <label>Signals only (never click)<input type="checkbox" data-s="signalsOnly" ${sigOnly() ? "checked" : ""} ${SITE.signalsOnly ? "disabled" : ""}></label>
       <label>Practice clicks (only highlight)<input type="checkbox" data-s="practice" ${S.practice ? "checked" : ""}></label>
       <label>Account<select data-s="account"><option value="demo" ${!isReal() ? "selected" : ""}>Demo / paper</option><option value="real" ${isReal() ? "selected" : ""}>REAL money</option></select></label>
       ${isReal() && !S.realOk ? `<label>Type I UNDERSTAND<input data-real placeholder="I UNDERSTAND"></label>` : ""}
@@ -448,7 +494,7 @@
     if (a === "wipe") { if (confirm("Reset settings, taught buttons and history for " + HOST + "? Practice clicks will be ON again.")) {
       S = Object.assign({}, DEF); TEACH = {}; ST = { pos: null, hist: [] }; saveS(); gset("teach." + HOST, TEACH); saveST(); log("everything reset for " + HOST); restart(); } return; }
     if (a === "auto") { auto ? stopAuto() : startAuto(); return; }
-    if (a === "buy" || a === "sell") { if (confirm(`${a.toUpperCase()} ${symbol()} now${S.practice ? " (practice clicks)" : ""}?`)) enter(a, null, "manual " + a); return; }
+    if (a === "buy" || a === "sell") { if (sigOnly() || confirm(`${a.toUpperCase()} ${symbol()} now${S.practice ? " (practice clicks)" : ""}?`)) enter(a, null, "manual " + a); return; }
     if (a === "close") { if (ST.pos && confirm("Close the bot's trade now?")) exitPos("closed by you"); else if (!ST.pos) log("the bot has no open trade"); return; }
     if (a === "test") { (async () => { for (const [k, l] of KEYS) { const e2 = el(k); if (e2) { flash(e2, l); await sleep(900); } else log(`not found: ${l}`); } })(); return; }
     if (t.dataset.show) { const e2 = el(t.dataset.show); e2 ? flash(e2, KEYS.find(k => k[0] === t.dataset.show)[1]) : log("not found - use Teach"); return; }
@@ -491,9 +537,10 @@
   async function tick() {
     keepPanel(); if (!onTradePage()) return;
     const p = readPrice(); if (p > 0) { px = p; pxT = Date.now(); }
+    else if (sigOnly() && bars.length) { px = bars[bars.length - 1].c * ratio; pxT = Date.now(); }
     const s = symbol();
     if (s && s !== lastSym) { lastSym = s; if (auto) stopAuto("the market changed"); loadHistory(true).catch(e => log("could not load history: " + (e.message || e))); }
-    else if (s) loadHistory(false).catch(() => {});
+    else if (s) { if (sigOnly() && !(readPrice() > 0) && Date.now() - histT > 60000) histT = 0; loadHistory(false).catch(() => {}); }
     if (bars.length) { liveIntoBars(); if (Date.now() - (tick.full || 0) > 3000 || !B) { tick.full = Date.now(); recompute(); } if (B) onBar(); }
     manage();
     if (Date.now() - lastRender > 3000 && !P.contains(document.activeElement)) { lastRender = Date.now(); render(); }
@@ -501,6 +548,18 @@
   render();
   log(`ready on ${SITE.name}. Start in Setup: press "Test all" and check the yellow highlights.`);
   if (ST.pos) log(`the bot remembers an open ${ST.pos.side} on ${ST.pos.sym} - it keeps watching its stop`);
+  // ---- started from the DigitBot page? take its market / timeframe / strategy
+  (function takeHandoff() {
+    let h = gget("handoff", null); if (!h && localStorage.getItem("dbst.handoff")) try { h = JSON.parse(localStorage.getItem("dbst.handoff")); } catch (e) {}
+    if (!h || Date.now() - h.t > 5 * 60000 || h.site !== Object.keys(SITES).find(k => SITES[k] === SITE)) return;
+    gset("handoff", null); try { localStorage.removeItem("dbst.handoff"); } catch (e) {}
+    if (h.tf && TF_MS[h.tf]) S.tf = h.tf; if (h.strategy && E.STRATEGIES[h.strategy]) S.strategy = h.strategy;
+    if (h.symOverride) S.symOverride = h.symOverride; else delete S.symOverride;
+    if (h.risk) S.risk = +h.risk; if (h.sizeUnit) S.sizeUnit = h.sizeUnit;
+    saveS(); tab = "auto"; render();
+    log(`started from the DigitBot ${h.from || ""} page: ${h.label || symbol()} ${S.tf}, ${E.STRATEGIES[S.strategy].name}${h.auto ? " - auto will start after the backtest" : ""}`);
+    if (h.auto) { const t0 = Date.now(), w = setInterval(() => { if (B && symbol()) { clearInterval(w); startAuto(); } else if (Date.now() - t0 > 60000) { clearInterval(w); log("auto not started: no price history yet"); } }, 1000); }
+  })();
   setInterval(() => tick().catch(e => console.error(e)), 1000);
   window.__dbst = { el, get S() { return S; }, get ST() { return ST; }, get TEACH() { return TEACH; }, enter, exitPos, get px() { return px; }, get B() { return B; },
                     startAuto, stopAuto, resolve, describe, render, keepPanel, setTab: t => { tab = t; render(); } };

@@ -59,8 +59,13 @@
     return { sym, tf, bars: r.bars.map(k => ({ t: k[0], o: k[1], h: k[2], l: k[3], c: k[4], v: k[5] })) };
   }
   let lastLoad = 0;
+  let again = false;
   async function loadHistory(silent) {
-    if (loading) return; loading = true; lastLoad = Date.now();
+    if (loading) { if (!silent) again = true; return; }        // a newer request waits for the current one, then runs
+    loading = true; lastLoad = Date.now();
+    try { await loadHistory2(silent); } finally { loading = false; if (again) { again = false; loadHistory(); } }
+  }
+  async function loadHistory2(silent) {
     if (isMT5()) {
       if (!silent) $("px").textContent = "loading…";
       if (ws) { ws.onclose = null; ws.close(); ws = null; wsKey = ""; }
@@ -69,18 +74,17 @@
         bars = r.bars; if (!silent) lastClosedT = 0; recompute(true); if (!silent) fitChart(); mt5Alive = Date.now(); afterLoad(silent);
         if (!silent) log(`loaded ${bars.length} bars of ${label(r.sym)} ${r.tf} from MetaTrader 5`);
       } catch (e) { $("px").textContent = "no data"; bars = []; log("MetaTrader 5: " + e.message + (/not selected/.test(e.message) ? " - choose 'Forex – MetaTrader 5' in ⚡ Live trading and press Save" : "")); }
-      loading = false; return;
+      return;
     }
     const sym = $("sym").value, tf = tfReq(), per = srcFor() === "futures" ? 1500 : 1000;
     if (!silent) $("px").textContent = "loading…";
     try {
       let all = [], end = null;
       for (let k = 0; k < 3 && all.length < 3000; k++) { const part = await klines(sym, tf, per, end); if (!part.length) break; all = part.concat(all); end = part[0].t - 1; if (part.length < per) break; }
-      if (sym !== $("sym").value || tf !== tfReq()) { loading = false; return; }
+      if (sym !== $("sym").value || tf !== tfReq()) { again = true; return; }
       bars = all.slice(-3000); if (!silent) lastClosedT = 0; recompute(true); if (!silent) fitChart(); connectWS(); afterLoad(silent);
       if (!silent) log(`loaded ${bars.length} bars of ${label(sym)} ${tf === "1s" ? "live 1-second" : tf} (Binance ${srcFor()})`);
     } catch (e) { if (!silent) { $("px").textContent = "no data"; log("could not load prices: " + e.message); } }
-    loading = false;
   }
   let mt5Alive = 0;
   async function mt5Tick() {                    // MT5 has no browser feed: ask the PC bot every 2 s
@@ -235,6 +239,8 @@
     alerts.filter(a => a.sym === $("sym").value).forEach(a => posLines.push(S.c.createPriceLine({ price: a.price, color: "#f59e0b", lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: "🔔 " + a.op })));
     if (ind("pos")) {
       const sym = $("sym").value, add = (price, color, title) => posLines.push(S.c.createPriceLine({ price, color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title }));
+      (acct.orders || []).filter(o => o.sym === sym).forEach(o => add(o.price, o.side === "buy" ? "#38bdf8" : "#f472b6", `${o.side.toUpperCase()} ${o.type}`));
+      (lines || []).filter(l => l.sym === sym).forEach(l => add(l.price, "#a3a3a3", "line"));
       acct.pos.filter(x => x.sym === sym).forEach(x => { add(x.entry, "#e2e8f0", "practice " + x.side); add(x.sl, "#ef4444", "SL"); add(x.tp, "#22c55e", "TP"); });
       (liveOpen || []).filter(x => (x.symbol === sym || x.symbol.toUpperCase().startsWith(sym)) && x.venue === mtype()).forEach(x => {
         add(x.entry, "#38bdf8", `LIVE ${x.venue === "futures" ? (x.side === "buy" ? "LONG" : "SHORT") : x.side.toUpperCase()}`); add(x.sl, "#ef4444", "SL"); add(x.tp, "#22c55e", "TP"); });
@@ -331,8 +337,22 @@
     acct.hist.push({ t: t.t, exitT: Date.now(), sym: t.sym, tf: t.tf, side: t.side, entry: t.entry, exit: px, units: t.units, pl, r: pl / t.riskMoney, strat: t.strat, reason });
     saveAcct(); log(`CLOSE ${t.side.toUpperCase()} ${label(t.sym)} at ${fmt(px)} (${reason}): ${pl >= 0 ? "+" : ""}${money(pl)}`);
   }
+  function fillOrders() {
+    if (!B || !acct.orders || !acct.orders.length) return;
+    const sym = $("sym").value, px = B.c[B.n - 1];
+    for (const o of acct.orders.slice()) {
+      if (o.sym !== sym) continue;
+      const hit = o.side === "buy" ? (o.type === "limit" ? px <= o.price : px >= o.price) : (o.type === "limit" ? px >= o.price : px <= o.price);
+      if (!hit) continue;
+      acct.orders = acct.orders.filter(x => x !== o); saveAcct();
+      log(`order filled: ${o.side.toUpperCase()} ${o.type} ${label(sym)} at ${fmt(o.price)}`);
+      notify(`${o.side.toUpperCase()} ${o.type} filled`, `${label(sym)} at ${fmt(px)} (practice)`);
+      openTrade(o.side, closedIdx(), null, "order", `${o.type} order at ${fmt(o.price)}`);
+    }
+  }
   function managePositions() {
     if (B) lastPrice[$("sym").value] = B.c[B.n - 1];
+    fillOrders();
     const trail = +$("ptTrail").value || 0;
     for (const t of acct.pos.slice()) {
       const px = lastPrice[t.sym]; if (px == null) continue;
@@ -364,6 +384,9 @@
   }
   function renderAccount() {
     if (!acct) return;
+    $("ptOrd").innerHTML = `<tr><th>market</th><th>order</th><th>price</th><th>now</th><th></th></tr>` + ((acct.orders || []).map((o, i) => `<tr><td>${label(o.sym)}</td>
+      <td><span class="tag ${o.side}">${o.side.toUpperCase()} ${o.type}</span></td><td>${fmt(o.price)}</td><td>${fmt(lastPrice[o.sym])}</td><td><button data-ocancel="${i}">Cancel</button></td></tr>`).join("") ||
+      `<tr><td colspan="5" class="mut">No pending orders. They fill while that market is on the chart.</td></tr>`);
     const eqv = acct.bal + acct.pos.reduce((s, t) => s + unreal(t), 0), th = todayHist(), dayPL = th.reduce((s, h) => s + h.pl, 0);
     const wins = acct.hist.filter(h => h.pl > 0).length, tot = acct.hist.reduce((s, h) => s + h.pl, 0);
     const k = (l, v, c) => `<div>${l}<b class="${c || ""}">${v}</b></div>`;
@@ -385,7 +408,7 @@
   // ---------------------------------------------------------------- UI wiring
   function showTab(t) {
     document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
-    ["sig", "bt", "pt", "live", "help"].forEach(k => $("t_" + k).classList.toggle("hide", k !== t));
+    ["sig", "bt", "pt", "live", "st", "help"].forEach(k => $("t_" + k).classList.toggle("hide", k !== t));
     if (t === "live" && B) draw();
     if (t === "bt" && !$("btTable").innerHTML) runBacktest();
   }
@@ -413,7 +436,7 @@
   window.addEventListener("hashchange", setMode);
   let pendingSym = null, tfSet = false;
   const rememberLast = () => { if (SET.remember) localStorage.setItem("dbLast." + mode, JSON.stringify({ sym: $("sym").value, tf: $("tf").value, mtype: $("mtype").value, extra })); };
-  $("sym").onchange = $("tf").onchange = () => { watch(); rememberLast(); if (auto) { auto = null; $("ptState").textContent = "Auto stopped (market changed)."; log("auto stopped: market or timeframe changed"); } $("btTable").innerHTML = ""; loadHistory(); };
+  $("sym").onchange = $("tf").onchange = () => { watch(); rememberLast(); setTimeout(stRender, 0); if (auto) { auto = null; $("ptState").textContent = "Auto stopped (market changed)."; log("auto stopped: market or timeframe changed"); } $("btTable").innerHTML = ""; loadHistory(); };
   $("ptStrat").onchange = draw; $("ptLong").onchange = draw;
   $("mtype").onchange = () => { fillMarkets($("sym").value); rememberLast(); if (auto) { auto = null; $("ptState").textContent = "Auto stopped (market changed)."; } $("btTable").innerHTML = ""; loadHistory(); };
   function fillMarkets(keep) {
@@ -613,6 +636,113 @@
     if (k === "tf" && !SET.remember) { $("tf").value = v; $("tf").onchange(); }
     applySettings(); if (B) draw(); };
   applySettings(true);
+  // ---- 🖱️ Screen Trader hand-off: open this market on a platform with the same timeframe + strategy
+  const PLAT = [["binfut", "Binance Futures", "binance"], ["bindemo", "Binance Demo Trading (futures)", "binance"], ["binspot", "Binance Spot", "binance"],
+                ["tv", "TradingView (Paper Trading or your broker)", "tradingview"], ["mt5web", "MetaTrader 5 Web", "mt5web"], ["tr", "Trade Republic (signals only)", "traderepublic"]];
+  const TVMAP = { EURUSDT: "FX:EURUSD", XAUUSDT: "OANDA:XAUUSD", PAXGUSDT: "BINANCE:PAXGUSDT", XAGUSDT: "OANDA:XAGUSD", XPTUSDT: "OANDA:XPTUSD", XPDUSDT: "OANDA:XPDUSD",
+                  CLUSDT: "TVC:USOIL", NATGASUSDT: "NYMEX:NG1!", COPPERUSDT: "COMEX:HG1!", XAUUSD: "OANDA:XAUUSD", XAGUSD: "OANDA:XAGUSD", US30: "TVC:DJI", NAS100: "NASDAQ:NDX" };
+  const plainName = s => /^USDT/.test(s) ? "USD" + s.slice(4) : { XAUUSDT: "XAUUSD", XAGUSDT: "XAGUSD", XPTUSDT: "XPTUSD", XPDUSDT: "XPDUSD", CLUSDT: "USOIL", NATGASUSDT: "NATGAS",
+                        COPPERUSDT: "COPPER", EURUSDT: "EURUSD", PAXGUSDT: "XAUUSD" }[s] || s;
+  function stTarget(plat) {
+    const s = $("sym").value, crypto = mode === "crypto", fx = !crypto;
+    const fut = crypto ? mtype() === "futures" : market()[3] === "fut";
+    switch (plat) {
+      case "binfut": return (crypto || fut) && !/^USDT/.test(s) && !isMT5() ? { url: `https://www.binance.com/en/futures/${s}` } : null;
+      case "bindemo": return (crypto || fut) && !/^USDT/.test(s) && !isMT5() ? { url: `https://demo.binance.com/en/futures/${s}` } : null;
+      case "binspot": return !isMT5() && !(fx && fut) ? { url: `https://www.binance.com/en/trade/${/^USDT/.test(s) ? "USDT_" + s.slice(4) : s.replace(/USDT$/, "") + "_USDT"}` } : null;
+      case "tv": { const t = TVMAP[s] || (isMT5() ? "FX:" + s : /^USDT/.test(s) ? "FX:USD" + s.slice(4) : `BINANCE:${s}${crypto && fut ? ".P" : ""}`);
+                   return { url: `https://www.tradingview.com/chart/?symbol=${encodeURIComponent(t)}` }; }
+      case "mt5web": return { url: "https://trade.mql5.com/trade", symOverride: crypto ? s : plainName(s) };
+      case "tr": return { url: "https://app.traderepublic.com/", symOverride: crypto ? s : plainName(s) };
+    }
+    return null;
+  }
+  const stInstalled = () => document.documentElement.dataset.dbst;
+  function stRender() {
+    const v = stInstalled();
+    $("stStatus").innerHTML = v ? `✅ Screen Trader ${v} is installed in this browser.`
+      : `⚠️ The Screen Trader is not installed in this browser (or Tampermonkey is off for this page). <a href="screen.html" target="_blank">Install it</a>, then reload this page.`;
+    const cur = $("stPlat").value;
+    $("stPlat").innerHTML = PLAT.map(([k, n]) => `<option value="${k}" ${stTarget(k) ? "" : "disabled"}>${n}${stTarget(k) ? "" : " - not for this market"}</option>`).join("");
+    if (cur && stTarget(cur)) $("stPlat").value = cur; else $("stPlat").value = (PLAT.find(p => stTarget(p[0])) || PLAT[3])[0];
+    const tf = $("tf").value === "1s" ? "1m" : $("tf").value;
+    $("stWhat").innerHTML = `Opens <b>${label($("sym").value)}</b> on <b>${PLAT.find(p => p[0] === $("stPlat").value)[1]}</b> · timeframe <b>${tf}</b> · strategy <b>${E.STRATEGIES[$("stStrat").value].name}</b>` +
+      ($("tf").value === "1s" ? " (live 1-second is too fast for trading: it uses 1 minute)" : "") + (stTarget($("stPlat").value).symOverride ? ` · market name for the bot: <b>${stTarget($("stPlat").value).symOverride}</b>` : "");
+  }
+  $("stStrat").innerHTML = Object.entries(E.STRATEGIES).map(([k, s]) => `<option value="${k}">${s.name}</option>`).join("");
+  $("stStrat").value = localStorage.getItem("dbStStrat") || "ema_pullback";
+  $("stPlat").value = localStorage.getItem("dbStPlat") || "";
+  $("stPlat").onchange = $("stStrat").onchange = () => { localStorage.setItem("dbStPlat", $("stPlat").value); localStorage.setItem("dbStStrat", $("stStrat").value); stRender(); };
+  $("stGo").onclick = () => {
+    const plat = $("stPlat").value, t = stTarget(plat); if (!t) return;
+    const h = { site: PLAT.find(p => p[0] === plat)[2], tf: $("tf").value === "1s" ? "1m" : $("tf").value, strategy: $("stStrat").value, auto: $("stAuto").checked,
+                label: label($("sym").value), from: mode === "crypto" ? "Crypto" : "Forex", symOverride: t.symOverride || null, risk: SET.risk,
+                sizeUnit: plat === "mt5web" && mode === "forex" ? "lots" : "coin" };
+    if (!stInstalled()) { if (!confirm("The Screen Trader doesn't seem to be installed in this browser. Open the platform anyway?")) return; }
+    else window.dispatchEvent(new CustomEvent("dbst-handoff", { detail: JSON.stringify(h) }));
+    log(`Screen Trader: opening ${h.label} on ${PLAT.find(p => p[0] === plat)[1]} (${h.tf}, ${E.STRATEGIES[h.strategy].name}${h.auto ? ", auto" : ""})`);
+    window.open(t.url, "_blank", "noopener");
+  };
+  setTimeout(stRender, 800); setInterval(() => { if (!$("t_st").classList.contains("hide")) stRender(); }, 3000);
+  // ---- right-click menu on the chart (like TradingView)
+  let lines = []; try { lines = JSON.parse(localStorage.getItem("dbLines") || "[]"); } catch (e) {}
+  let mouseY = null;
+  $("lw").addEventListener("mousemove", e => { mouseY = e.clientY - $("lw").getBoundingClientRect().top; });
+  const priceAtY = y => { if (!S.c || y == null) return null; const v = S.c.coordinateToPrice(y); return v > 0 ? +(+v).toPrecision(7) : null; };
+  function hideMenu() { $("cmenu").classList.add("hide"); }
+  function placeOrder(side, price) {
+    const now = B.c[B.n - 1], type = side === "buy" ? (price < now ? "limit" : "stop") : (price > now ? "limit" : "stop");
+    acct.orders = acct.orders || []; acct.orders.push({ sym: $("sym").value, side, type, price, t: Date.now() }); saveAcct();
+    log(`practice order placed: ${side.toUpperCase()} ${type} ${label($("sym").value)} at ${fmt(price)}`); renderAccount(); draw();
+  }
+  function addAlertAt(price) {
+    const now = B.c[B.n - 1], op = price >= now ? "above" : "below";
+    alerts.push({ sym: $("sym").value, op, price, t: Date.now() }); saveAlerts(); log(`alert added: ${label($("sym").value)} ${op} ${fmt(price)}`);
+  }
+  function showMenu(x, y, price) {
+    const sym = label($("sym").value), now = B ? B.c[B.n - 1] : 0, p = fmt(price);
+    const bt = price < now ? "limit" : "stop", st = price > now ? "limit" : "stop";
+    const items = [["reset", "⟲ Reset chart view", "Alt + R"], "-", ["copy", `Copy price ${p}`, ""], ["alert", `🔔 Add alert on ${sym} at ${p}`, "Alt + A"], "-",
+                   ["sell", `⌄ Sell @ ${p} ${st} (practice)`, "Alt + Shift + S"], ["buy", `⌃ Buy @ ${p} ${bt} (practice)`, "Alt + Shift + B"],
+                   ["line", `― Draw a line at ${p}`, ""], ["clearlines", "Remove my lines", ""], "-",
+                   ["full", document.fullscreenElement ? "Exit full screen" : "⛶ Full screen", ""], ["settings", "⚙️ Settings…", ""]];
+    $("cmenu").innerHTML = items.map(i => i === "-" ? "<hr>" : `<div class="i" data-c="${i[0]}"><span>${i[1]}</span><small>${i[2]}</small></div>`).join("");
+    $("cmenu").dataset.price = price; $("cmenu").classList.remove("hide");
+    const r = $("cmenu").getBoundingClientRect();
+    $("cmenu").style.left = Math.min(x, innerWidth - r.width - 8) + "px"; $("cmenu").style.top = Math.min(y, innerHeight - r.height - 8) + "px";
+    (document.fullscreenElement || document.body).appendChild($("cmenu"));
+  }
+  function menuAction(c, price) {
+    hideMenu();
+    if (c === "reset") { chart.timeScale().resetTimeScale(); chart.priceScale("right").applyOptions({ autoScale: true }); fitChart(); }
+    else if (c === "copy") { navigator.clipboard && navigator.clipboard.writeText(String(price)); log(`copied ${price}`); }
+    else if (c === "alert") addAlertAt(price);
+    else if (c === "buy" || c === "sell") placeOrder(c, price);
+    else if (c === "line") { lines.push({ sym: $("sym").value, price }); localStorage.setItem("dbLines", JSON.stringify(lines)); draw(); }
+    else if (c === "clearlines") { lines = lines.filter(l => l.sym !== $("sym").value); localStorage.setItem("dbLines", JSON.stringify(lines)); draw(); }
+    else if (c === "full") $("cFull").onclick();
+    else if (c === "settings") $("setBtn").onclick();
+  }
+  $("lw").addEventListener("contextmenu", e => {
+    const y = e.clientY - $("lw").getBoundingClientRect().top, price = priceAtY(y); if (!price || !B) return;
+    e.preventDefault(); showMenu(e.clientX, e.clientY, price);
+  });
+  let pressT = 0;                                          // phones: long-press opens the menu
+  $("lw").addEventListener("touchstart", e => { const t = e.touches[0]; clearTimeout(pressT);
+    pressT = setTimeout(() => { const pr = priceAtY(t.clientY - $("lw").getBoundingClientRect().top); if (pr && B) showMenu(t.clientX, t.clientY, pr); }, 650); }, { passive: true });
+  ["touchend", "touchmove"].forEach(ev => $("lw").addEventListener(ev, () => clearTimeout(pressT), { passive: true }));
+  $("cmenu").addEventListener("click", e => { const i = e.target.closest("[data-c]"); if (i) menuAction(i.dataset.c, +$("cmenu").dataset.price); });
+  document.addEventListener("mousedown", e => { if (!e.target.closest("#cmenu")) hideMenu(); });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape") hideMenu();
+    if (!e.altKey || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) || !B) return;
+    const k = e.key.toLowerCase(), pr = priceAtY(mouseY) || B.c[B.n - 1];
+    if (k === "r" && !e.shiftKey) { e.preventDefault(); menuAction("reset"); }
+    else if (k === "a" && !e.shiftKey) { e.preventDefault(); menuAction("alert", pr); }
+    else if (k === "b" && e.shiftKey) { e.preventDefault(); menuAction("buy", pr); }
+    else if (k === "s" && e.shiftKey) { e.preventDefault(); menuAction("sell", pr); }
+  });
+  $("ptOrd").onclick = e => { const i = e.target.dataset.ocancel; if (i == null) return; const o = acct.orders.splice(+i, 1)[0]; saveAcct(); log(`order cancelled: ${o.side} ${o.type} at ${fmt(o.price)}`); renderAccount(); draw(); };
   // ---- auto-refresh: re-download the history now and then (the chart itself moves live)
   setInterval(() => { if (!$("autoRef").checked || loading || document.hidden) return;
     const per = ["1s", "1m", "3m", "5m"].includes($("tf").value) ? 120000 : 300000; if (Date.now() - lastLoad > per) loadHistory(true); }, 15000);
