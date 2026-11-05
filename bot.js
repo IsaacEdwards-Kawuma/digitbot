@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.5.0
+// @version      2.6.0
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -37,7 +37,7 @@
   const DEF = { button: "differ", pick: 0, duration: "5t", stakeSet: 1, autoSetup: true,
                 trigger: "0", inRow: 1, maxTrades: 10, maxMinutes: 20, cooldown: 2,
                 maxStake: 10, stopLoss: 20, takeProfit: 20, allowReal: false, live: false };
-  DEF.strategy = "custom"; DEF.tab = "auto"; DEF.autoStake = 1;
+  DEF.strategy = "custom"; DEF.tab = "auto"; DEF.autoStake = 1; DEF.mode = "auto"; DEF.dayLimit = 20;
 
   // Ready-made strategies: picking one fills in every setting below (you can still change them).
   // Safe defaults for all: $1 stake, stop-loss $10, take-profit $10, max stake $5, LIVE clicks on.
@@ -286,6 +286,15 @@
   #mdb .once{grid-column:1/3;padding:9px;border:0;border-radius:8px;background:#2563eb;color:#fff;font-size:14px;font-weight:600}
   #mdb .once:disabled{background:#94a3b8}
   #mdb .tip{grid-column:1/3;font-size:11px;color:#64748b}
+  #mdb .tabs button{padding:8px 4px;font-size:13px}
+  #mdb .stx{grid-column:1/3;display:grid;grid-template-columns:1fr 1fr 1fr;gap:4px}
+  #mdb .stx div{background:#f1f5f9;border-radius:6px;padding:4px 6px;font-size:11px;color:#475569}
+  #mdb .stx b{display:block;font-size:14px;color:#0f172a}
+  #mdb .tbl{grid-column:1/3;max-height:190px;overflow:auto;border:1px solid #e2e8f0;border-radius:6px}
+  #mdb .tbl table{width:100%;border-collapse:collapse;font-size:11px}
+  #mdb .tbl td,#mdb .tbl th{padding:3px 5px;border-bottom:1px solid #f1f5f9;text-align:left;white-space:nowrap}
+  #mdb .tbl th{position:sticky;top:0;background:#f8fafc;color:#475569}
+  #mdb .clr{grid-column:1/3;padding:7px;border:1px solid #fca5a5;border-radius:8px;background:#fff;color:#b91c1c;font-size:13px}
   #mdb .hp{display:none;padding:8px 10px;max-height:75vh;overflow:auto;font-size:13px}
   #mdb.help .bd{display:none} #mdb.help .hp{display:block}
   #mdb .hp details{border:1px solid #e2e8f0;border-radius:8px;margin:6px 0;background:#f8fafc}
@@ -302,6 +311,13 @@
     <li><b>⚡ Auto</b>: pick a strategy, press <b>Start auto</b>. The bot trades by itself with the strategy's settings.</li>
     <li><b>✋ Manual</b>: you choose the button, digit, stake and limits. <b>Trade once now</b> places one trade at once;
         <b>Start</b> lets the bot trade with your settings when “Trade when” happens.</li>
+   </ul></div></details>
+   <details><summary>📊 Stats and the daily loss limit</summary><div><ul>
+    <li>The <b>📊 Stats</b> tab lists every trade the bot placed, with win / loss and profit, and shows
+        today's and all-time win rate, P/L, the longest losing run and the return on the money staked.</li>
+    <li><b>Download history (CSV)</b> saves it as a spreadsheet file.</li>
+    <li><b>Daily loss limit</b>: when today's losses reach it, the bot stops and will not trade again until tomorrow
+        (counted per device and per account type). Default $20; 0 turns it off.</li>
    </ul></div></details>
    <details><summary>Easiest: pick a strategy</summary><div><ol>
     <li>Open the game (Manual Trader) on <b>DEMO</b>.</li>
@@ -386,7 +402,7 @@
   box.innerHTML = `
   <div class="hd"><b>🤖 Digit Bot</b><span id="mdbBadge"></span><button id="mdbHelp" title="Help: how the bot works">?</button><button id="mdbMin">–</button><button id="mdbX">✕</button></div>
   <div class="bd">
-   <div class="tabs"><button id="tabAuto">⚡ Auto</button><button id="tabMan">✋ Manual</button></div>
+   <div class="tabs"><button id="tabAuto">⚡ Auto</button><button id="tabMan">✋ Manual</button><button id="tabStats">📊 Stats</button></div>
    <div class="g" id="pAuto">
     <div class="tip">Auto trading: pick a strategy, press Start. The bot trades by itself until a limit stops it.</div>
     <div class="sec">Strategy</div>
@@ -423,6 +439,20 @@
     <label class="ck"><input id="f_live" type="checkbox">LIVE clicks</label>
     <label class="ck"><input id="f_allowReal" type="checkbox">Allow REAL</label>
    </div>
+   <div class="g" id="pStats">
+    <div class="sec">Today</div>
+    <div class="stx" id="stToday"></div>
+    <label>Daily loss limit ($)<input id="f_dayLimit" type="number" min="0" step="0.01" inputmode="decimal"></label>
+    <div class="tip" style="grid-column:auto;align-self:end">Stops all trading for the rest of the day when today's loss reaches this. 0 = off.</div>
+    <div class="odds" id="stDay"></div>
+    <div class="sec">All saved trades</div>
+    <div class="stx" id="stAll"></div>
+    <div class="tbl" id="stTable"></div>
+    <button class="once" id="stCsv">Download history (CSV)</button>
+    <button class="clr" id="stClear">Clear history</button>
+    <div class="tip">Only trades placed by the bot are listed (this device, the account type shown: DEMO or REAL).
+     Totals are exact; if you also trade by hand while the bot runs, single results can be mixed up.</div>
+   </div>
    <div class="st">
     <div class="row"><span id="mdbAcc">account: ?</span><span id="mdbBal">balance: ?</span></div>
     <div class="row"><span id="mdbSym">?</span><span id="mdbStake">stake: ?</span></div>
@@ -443,7 +473,7 @@
 
   const TEXT_FIELDS = { button: 1, trigger: 1, duration: 1 };
   const FIELDS = ["button", "pick", "duration", "stakeSet", "autoSetup", "trigger", "inRow", "cooldown", "maxTrades",
-                  "maxMinutes", "stopLoss", "takeProfit", "maxStake", "live", "allowReal"];
+                  "maxMinutes", "stopLoss", "takeProfit", "maxStake", "live", "allowReal", "dayLimit"];
   for (const f of FIELDS) {
     const el = $("f_" + f);
     if (el.type === "checkbox") el.checked = !!S[f]; else el.value = S[f];
@@ -455,7 +485,7 @@
       }
       S[f] = el.type === "checkbox" ? el.checked : TEXT_FIELDS[f] ? el.value : parseFloat(el.value);
       if (f === "allowReal" && el.checked && !confirm("Allow trading on a REAL money account?\n\nThe bot cannot predict digits. Only use money you can afford to lose.")) { el.checked = false; S[f] = false; }
-      if (f !== "live" && f !== "allowReal") S.strategy = "custom";   // you changed a strategy's setting
+      if (f !== "live" && f !== "allowReal" && f !== "dayLimit") S.strategy = "custom";   // you changed a strategy's setting
       save(); refreshForm();
     });
   }
@@ -501,14 +531,19 @@
   }
   refreshForm();
   function showTab() {
-    const auto = S.tab !== "manual";
-    $("pAuto").style.display = auto ? "" : "none";
-    $("pMan").style.display = auto ? "none" : "";
-    $("tabAuto").classList.toggle("on", auto); $("tabMan").classList.toggle("on", !auto);
-    $("mdbStart").textContent = auto ? "Start auto" : "Start";
+    if (!["auto", "manual", "stats"].includes(S.tab)) S.tab = "auto";
+    if (S.tab !== "stats") S.mode = S.tab;          // Start uses the last of Auto / Manual
+    $("pAuto").style.display = S.tab === "auto" ? "" : "none";
+    $("pMan").style.display = S.tab === "manual" ? "" : "none";
+    $("pStats").style.display = S.tab === "stats" ? "" : "none";
+    $("tabAuto").classList.toggle("on", S.tab === "auto"); $("tabMan").classList.toggle("on", S.tab === "manual");
+    $("tabStats").classList.toggle("on", S.tab === "stats");
+    $("mdbStart").textContent = S.mode === "manual" ? "Start" : "Start auto";
+    if (S.tab === "stats" && statsReady) renderStats();
   }
   $("tabAuto").onclick = () => { S.tab = "auto"; save(); showTab(); };
   $("tabMan").onclick = () => { S.tab = "manual"; save(); showTab(); };
+  $("tabStats").onclick = () => { S.tab = "stats"; save(); showTab(); };
   showTab();
   const UI_KEY = "mmgDigitBot.ui.v1";
   let UI = {}; try { UI = JSON.parse(localStorage.getItem(UI_KEY) || "{}"); } catch (e) {}
@@ -569,8 +604,9 @@
 
   async function start() {
     if (running || busy) return;
-    if (S.tab !== "manual" && !strategyById(S.strategy)) { log("Pick a strategy first (or use the Manual tab).", "warn"); return; }
+    if (S.mode !== "manual" && !strategyById(S.strategy)) { log("Pick a strategy first (or use the Manual tab).", "warn"); return; }
     const demo = isDemo(), bal = balance();
+    { const why = dayBlock(0); if (why) { log(why, "warn"); return; } }
     if (!demo && !S.allowReal) { log("This is a REAL account. Tick 'Allow REAL' first (or switch to DEMO).", "warn"); return; }
     if (!circleRow() || !priceText()) { log("Can't find the digit circles / price. Open the Manual Trader page.", "warn"); return; }
     if (bal == null) { log("Can't read your balance - not starting.", "warn"); return; }
@@ -639,11 +675,122 @@
       if (st == null) { log("Can't read the stake (Amount) - not trading blind.", "warn"); return; }
       if (st > S.maxStake) { log(`Stake $${st} is above your max stake $${S.maxStake}.`, "warn"); return; }
       if (!demo && !confirm(`⚠ REAL MONEY\nPress ${describe()} for $${st}?`)) return;
+      { const why = dayBlock(st); if (why) { log(why, "warn"); return; } }
+      ledger(balance());
       b.click(); lastClick = Date.now();
+      recordTrade(st, payoutPct(b), null, "manual");
       log(`MANUAL: CLICKED ${describe()} ($${st})`, "ok");
     } catch (e) { log("setup failed: " + e, "warn"); }
     finally { busy = false; $("mdbOnce").disabled = false; }
   }
+  // ------------------------------------------------------------------ trade history & daily loss limit
+  // The site doesn't report each result to us, so: the stake leaves the balance at the click, and when the
+  // "Open (N)" count goes down the oldest open trade(s) settled; money that came back since = their payout.
+  const HKEY = "mmgDigitBot.history.v1", HMAX = 3000;
+  let H = []; try { H = JSON.parse(localStorage.getItem(HKEY) || "[]"); } catch (e) {}
+  const saveH = () => { try { localStorage.setItem(HKEY, JSON.stringify(H.slice(-HMAX))); } catch (e) {} };
+  H.forEach(x => { if (x.res === "open") { x.res = "?"; } });          // left open by a reload: unknown
+  const waiting = [];
+  let ledBal = null, ledOpen = null, credit = 0;
+  const events = [];   // a drop of the "Open (N)" count: { k trades, c money back, at resolve time }
+  const accNow = () => isDemo() ? "demo" : "real";
+  const dayOf = ms => { const d = new Date(ms); return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate(); };
+  const money2 = v => (v < 0 ? "-$" : "+$") + Math.abs(v).toFixed(2);
+  function recordTrade(st, pay, digit, strat) {
+    const x = { t: Date.now(), acc: accNow(), strat, bet: describe(), digit, stake: st, pay, res: "open", profit: null };
+    H.push(x); if (H.length > HMAX) H.splice(0, H.length - HMAX);
+    waiting.push(x); saveH(); renderStats();
+  }
+  function settle(k, money) {
+    const grp = waiting.splice(0, k); if (!grp.length) return;
+    let c = Math.round(money * 100) / 100;
+    if (grp.length === 1) { const x = grp[0]; x.res = c > 0 ? "win" : "loss"; x.profit = Math.round((c - x.stake) * 100) / 100; }
+    else for (const x of grp) {           // several settled together: share the payout out, oldest first
+      const back = x.pay != null ? x.stake * (1 + x.pay / 100) : null;
+      if (back != null && c >= back * 0.97) { x.res = "win"; x.profit = Math.round((back - x.stake) * 100) / 100; c -= back; }
+      else if (back == null && c > 0) { x.res = "?"; x.profit = Math.round((c - x.stake) * 100) / 100; c = 0; }
+      else { x.res = "loss"; x.profit = -x.stake; }
+    }
+    saveH(); renderStats();
+  }
+  function ledger(bal) {
+    const open = openTrades();
+    let back = 0;
+    if (bal != null) { if (ledBal != null && bal > ledBal) back = bal - ledBal; ledBal = bal; }
+    const drop = open != null && ledOpen != null && open < ledOpen ? ledOpen - open : 0;
+    if (open != null) ledOpen = open;
+    const pend = events.reduce((s, e) => s + e.k, 0);
+    if (drop && waiting.length > pend) {          // our trade(s) just closed: money seen now (or just before) is theirs
+      events.push({ k: Math.min(drop, waiting.length - pend), c: credit + back, at: Date.now() + 1200 }); credit = 0;
+    } else if (back) {
+      const e = events[events.length - 1];
+      if (e && Date.now() < e.at) e.c += back;   // the balance updated a moment after the count
+      else credit += back;                       // ...or a moment before it
+    }
+    while (events.length && Date.now() >= events[0].at) { const e = events.shift(); settle(e.k, e.c); }
+    // safety nets: nothing open any more, or no "Open (N)" tab on the page -> settle by time
+    if (!events.length && waiting.length && Date.now() - lastClick > 4000 &&
+        (open === 0 || (open == null && Date.now() - waiting[0].t > 20000))) { settle(open === 0 ? waiting.length : 1, credit); credit = 0; }
+    if (!waiting.length && !events.length && open === 0) credit = 0;   // money from trades made by hand
+  }
+  function today(acc) { const d = dayOf(Date.now()); return H.filter(x => x.acc === acc && dayOf(x.t) === d); }
+  function dayLossNow() { return -today(accNow()).reduce((s, x) => s + (x.profit || 0), 0); }
+  // "" = OK to trade; otherwise why not. Counts open stakes as lost (pessimistic).
+  function dayBlock(st) {
+    if (!(S.dayLimit > 0)) return "";
+    const lost = dayLossNow(), open = waiting.reduce((s, x) => s + x.stake, 0);
+    if (lost >= S.dayLimit) return `daily loss limit reached: today ${money2(-lost)} (limit $${S.dayLimit}). Trading is blocked until tomorrow (or raise the limit in 📊 Stats).`;
+    if (lost + open + st > S.dayLimit) return `this $${st} trade could take today's loss past the $${S.dayLimit} daily limit`;
+    return "";
+  }
+  function summary(list) {
+    const done = list.filter(x => x.profit != null);
+    const wins = done.filter(x => x.res === "win").length, losses = done.filter(x => x.res === "loss").length;
+    let streak = 0, worst = 0; for (const x of done) { streak = x.res === "loss" ? streak + 1 : 0; worst = Math.max(worst, streak); }
+    const pl = done.reduce((s, x) => s + x.profit, 0);
+    return { n: list.length, wins, losses, rate: wins + losses ? Math.round(100 * wins / (wins + losses)) : null, pl, worst,
+             staked: done.reduce((s, x) => s + x.stake, 0), best: Math.max(0, ...done.map(x => x.profit)),
+             low: Math.min(0, ...done.map(x => x.profit)) };
+  }
+  const cell = (label, v, cls) => `<div>${label}<b class="${cls || ""}">${v}</b></div>`;
+  function renderStats() {
+    if (S.tab !== "stats") return;
+    const acc = accNow(), mine = H.filter(x => x.acc === acc), td = summary(today(acc)), all = summary(mine);
+    const plc = v => v >= 0 ? "ok" : "warn";
+    $("stToday").innerHTML = cell("trades", td.n) + cell("win rate", td.rate == null ? "–" : td.rate + "%") +
+      cell("P/L", money2(td.pl), plc(td.pl)) + cell("wins / losses", `${td.wins} / ${td.losses}`) +
+      cell("worst loss run", td.worst) + cell("account", acc.toUpperCase(), acc === "demo" ? "ok" : "warn");
+    const lost = -td.pl;
+    $("stDay").innerHTML = !(S.dayLimit > 0) ? "Daily loss limit is off." :
+      lost >= S.dayLimit ? `<span class="warn">Limit reached: trading blocked for today.</span>` :
+      `Today you can still lose <b>$${Math.max(0, S.dayLimit - Math.max(0, lost)).toFixed(2)}</b> before the bot stops for the day.`;
+    $("stAll").innerHTML = cell("trades", all.n) + cell("win rate", all.rate == null ? "–" : all.rate + "%") +
+      cell("total P/L", money2(all.pl), plc(all.pl)) + cell("staked", "$" + all.staked.toFixed(2)) +
+      cell("worst loss run", all.worst) + cell("return", all.staked ? (100 * all.pl / all.staked).toFixed(1) + "%" : "–");
+    const rows = mine.slice(-40).reverse().map(x => {
+      const r = x.res === "win" ? `<span class="ok">✔ ${money2(x.profit)}</span>` : x.res === "loss" ? `<span class="warn">✘ ${money2(x.profit)}</span>`
+              : x.res === "open" ? "… open" : x.profit != null ? `? ${money2(x.profit)}` : "?";
+      return `<tr><td>${new Date(x.t).toTimeString().slice(0, 8)}</td><td>${x.bet}</td><td>$${x.stake}</td><td>${r}</td></tr>`;
+    }).join("");
+    $("stTable").innerHTML = `<table><tr><th>time</th><th>bet</th><th>stake</th><th>result</th></tr>${rows ||
+      '<tr><td colspan="4">No trades yet.</td></tr>'}</table>`;
+  }
+  $("stCsv").onclick = () => {
+    const q = v => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+    const lines = ["time,account,strategy,bet,trigger digit,stake,payout %,result,profit"].concat(H.map(x =>
+      [new Date(x.t).toLocaleString(), x.acc, x.strat, x.bet, x.digit, x.stake, x.pay, x.res, x.profit].map(q).join(",")));
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/csv" }));
+    a.download = `digitbot-history-${dayOf(Date.now())}.csv`; document.body.appendChild(a); a.click(); a.remove();
+    log(`history saved: ${H.length} trades`, "ok");
+  };
+  $("stClear").onclick = () => {
+    if (!confirm(`Delete all ${H.length} saved trades on this device?\n(This also resets today's total for the daily loss limit.)`)) return;
+    H = []; waiting.length = 0; events.length = 0; credit = 0; saveH(); renderStats(); log("history cleared", "warn");
+  };
+  $("f_dayLimit").addEventListener("change", () => renderStats());
+  var statsReady = true; showTab();
+
   $("mdbOnce").onclick = tradeOnce;
   $("mdbStart").onclick = start;
   $("mdbStop").onclick = () => stop("stopped by you");
@@ -681,8 +828,12 @@
         log(`digit ${d}: skipped - losing this $${st} stake could take you past the $${S.stopLoss} stop-loss ` +
             `(lower the Stake or raise the Stop-loss - see ? help)`); return;
       }
+      { const why = dayBlock(st);
+        if (why) { if (dayLossNow() >= S.dayLimit || !waiting.length) stop(why); else log(`digit ${d}: skipped - ${why}`); return; } }
+      ledger(balance());
       b.click();
       lastClick = Date.now(); trades++;
+      recordTrade(st, payoutPct(b), d, S.mode === "manual" ? "custom" : (strategyById(S.strategy) || {}).name || "custom");
       log(`digit ${d}: CLICKED ${describe()} ($${st}) [${trades}/${S.maxTrades}]`, "ok");
     } else {
       lastClick = Date.now(); trades++;
@@ -693,6 +844,7 @@
   let lastOdds = "";
   function loop() {
     const demo = isDemo(), bal = balance(), done = settled();
+    ledger(bal);
     $("mdbAcc").innerHTML = demo ? '<span class="ok">DEMO</span>' : '<span class="warn">REAL</span>';
     { const plb = running && bal != null && startBal != null ? bal - startBal : null;
       $("mdbBadge").textContent = running
@@ -731,6 +883,7 @@
     if (trades >= S.maxTrades) finish("reached max trades");
     else if (Date.now() - t0 > S.maxMinutes * 60000) finish("reached time limit");
     else if (done && pl != null && S.stopLoss > 0 && -pl >= S.stopLoss) stop("stop-loss hit");
+    else if (done && S.dayLimit > 0 && dayLossNow() >= S.dayLimit) stop(`daily loss limit $${S.dayLimit} reached`);
     else if (done && pl != null && S.takeProfit > 0 && pl >= S.takeProfit) stop("take-profit hit");
   }
   setInterval(loop, 100);
