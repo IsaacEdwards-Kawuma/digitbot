@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.6.0
+// @version      2.7.0
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -37,7 +37,7 @@
   const DEF = { button: "differ", pick: 0, duration: "5t", stakeSet: 1, autoSetup: true,
                 trigger: "0", inRow: 1, maxTrades: 10, maxMinutes: 20, cooldown: 2,
                 maxStake: 10, stopLoss: 20, takeProfit: 20, allowReal: false, live: false };
-  DEF.strategy = "custom"; DEF.tab = "auto"; DEF.autoStake = 1; DEF.mode = "auto"; DEF.dayLimit = 20;
+  DEF.strategy = "custom"; DEF.tab = "auto"; DEF.autoStake = 1; DEF.mode = "auto"; DEF.dayLimit = 20; DEF.alerts = true;
 
   // Ready-made strategies: picking one fills in every setting below (you can still change them).
   // Safe defaults for all: $1 stake, stop-loss $10, take-profit $10, max stake $5, LIVE clicks on.
@@ -312,6 +312,11 @@
     <li><b>✋ Manual</b>: you choose the button, digit, stake and limits. <b>Trade once now</b> places one trade at once;
         <b>Start</b> lets the bot trade with your settings when “Trade when” happens.</li>
    </ul></div></details>
+   <details><summary>🧪 Testing a strategy</summary><div>
+    <p>In ⚡ Auto, <b>Test this strategy</b> plays your current settings 1000 times on random digits (that is how the
+    real ticks behave) with the same trigger, cooldown and limits, without money. It shows how often a run ends in
+    profit, hits the stop-loss or the take-profit, and the average result. Lucky runs are common; the average is
+    what you keep over time.</p></div></details>
    <details><summary>📊 Stats and the daily loss limit</summary><div><ul>
     <li>The <b>📊 Stats</b> tab lists every trade the bot placed, with win / loss and profit, and shows
         today's and all-time win rate, P/L, the longest losing run and the return on the money staked.</li>
@@ -382,8 +387,10 @@
     <li>Panel gone? Tap the Digit Bot bookmark again.</li>
     <li><b>Floating bubble</b>: “–” shrinks the bot to a small bubble showing LIVE, trades and P/L.
         Drag it anywhere; tap it to open. The place is remembered.</li>
-    <li>The screen stays on while the bot runs. If you switch to another app or tab, the phone pauses
-        the page, so the bot pauses too (and stops after 15 s without ticks). Keep the game on screen.</li>
+    <li>The screen stays on while the bot runs. If you switch to another app or tab, the bot <b>pauses</b>
+        and <b>carries on</b> when you come back to the game (limits and the daily loss limit still apply).</li>
+    <li><b>🔔 alerts</b>: a sound (and a buzz on Android) when the bot stops by itself: happy notes for a profit,
+        low notes for a loss or a limit. iPhone: the ringer switch must be on for sound.</li>
    </ul></div></details>
    <details><summary>Example setups</summary><div><ul>
     <li><b>First test</b>: Differ, pick 7, stake 1, every tick, max trades 1, stop-loss 10, max stake 1, LIVE on.</li>
@@ -411,9 +418,13 @@
       [...new Set(STRATEGIES.map(s => s.group))].map(g => `<optgroup label="${g}">` +
         STRATEGIES.filter(s => s.group === g).map(s => opt(s.id, s.name)).join("") + "</optgroup>").join("")}</select></label>
     <label>Stake per trade ($)<input id="f_autoStake" type="number" min="0.35" step="0.01" inputmode="decimal"></label>
-    <div class="tip" style="grid-column:auto;align-self:end">Stop-loss and take-profit = 10 × stake, max stake = stake.</div>
+    <div class="tip" style="grid-column:auto;align-self:end">A new stake resets stop-loss and take-profit to 10 × stake (you can change them).</div>
+    <label>Stop-loss ($)<input id="f_aSL" type="number" min="0" step="0.01" inputmode="decimal"></label>
+    <label>Take-profit ($)<input id="f_aTP" type="number" min="0" step="0.01" inputmode="decimal"></label>
     <div class="odds" id="mdbStratDesc"></div>
     <div class="odds" id="mdbOdds2"></div>
+    <button class="once" id="mdbTest">🧪 Test this strategy (1000 practice runs, no money)</button>
+    <div class="odds" id="mdbTestOut" style="display:none"></div>
    </div>
    <div class="g" id="pMan">
     <div class="tip">Manual trading: choose everything yourself. Press <b>Trade once now</b> for a single trade,
@@ -459,6 +470,7 @@
     <div class="row"><span id="mdbRun">stopped</span><span id="mdbPL"></span></div>
     <div class="dg" id="mdbDigits">waiting for ticks…</div>
    </div>
+   <label class="ck" style="margin:0 0 6px"><input id="f_alerts" type="checkbox">🔔 Sound + vibrate when the bot stops</label>
    <div class="go"><button class="start" id="mdbStart">Start</button><button class="stop" id="mdbStop">Stop</button></div>
    <div class="log" id="mdbLog"></div>
   </div>
@@ -473,7 +485,7 @@
 
   const TEXT_FIELDS = { button: 1, trigger: 1, duration: 1 };
   const FIELDS = ["button", "pick", "duration", "stakeSet", "autoSetup", "trigger", "inRow", "cooldown", "maxTrades",
-                  "maxMinutes", "stopLoss", "takeProfit", "maxStake", "live", "allowReal", "dayLimit"];
+                  "maxMinutes", "stopLoss", "takeProfit", "maxStake", "live", "allowReal", "dayLimit", "alerts"];
   for (const f of FIELDS) {
     const el = $("f_" + f);
     if (el.type === "checkbox") el.checked = !!S[f]; else el.value = S[f];
@@ -485,12 +497,13 @@
       }
       S[f] = el.type === "checkbox" ? el.checked : TEXT_FIELDS[f] ? el.value : parseFloat(el.value);
       if (f === "allowReal" && el.checked && !confirm("Allow trading on a REAL money account?\n\nThe bot cannot predict digits. Only use money you can afford to lose.")) { el.checked = false; S[f] = false; }
-      if (f !== "live" && f !== "allowReal" && f !== "dayLimit") S.strategy = "custom";   // you changed a strategy's setting
+      if (!["live", "allowReal", "dayLimit", "alerts"].includes(f)) S.strategy = "custom";   // you changed a strategy's setting
       save(); refreshForm();
     });
   }
   function fillForm() {
     for (const f of FIELDS) { const el = $("f_" + f); if (el.type === "checkbox") el.checked = !!S[f]; else el.value = S[f]; }
+    $("f_aSL").value = S.stopLoss; $("f_aTP").value = S.takeProfit;
   }
   $("f_strategy").addEventListener("change", () => {
     const el = $("f_strategy");
@@ -510,6 +523,15 @@
     fillForm();
   }
   $("f_autoStake").value = S.autoStake;
+  $("f_aSL").value = S.stopLoss; $("f_aTP").value = S.takeProfit;
+  for (const [id, key] of [["f_aSL", "stopLoss"], ["f_aTP", "takeProfit"]]) {
+    $(id).addEventListener("change", () => {
+      const v = parseFloat($(id).value);
+      if (!(v >= 0)) { $(id).value = S[key]; return; }
+      S[key] = Math.round(v * 100) / 100; fillForm(); save(); refreshForm();
+      log(`${key === "stopLoss" ? "stop-loss" : "take-profit"} set to $${S[key]}`, "ok");
+    });
+  }
   $("f_autoStake").addEventListener("change", () => {
     const el = $("f_autoStake"), v = parseFloat(el.value);
     if (running || busy) { log("Stop the bot before changing the stake.", "warn"); el.value = S.autoStake; return; }
@@ -629,7 +651,7 @@
                   `Stop-loss $${S.stopLoss}  Take-profit $${S.takeProfit}\n${odds}\n\nStart?`;
       if (!confirm(msg)) return;
     }
-    keepAwake(true);
+    keepAwake(true); audioUnlock();
     running = true; finishing = null; t0 = Date.now(); trades = 0; run = 0; startBal = balance(); lastTickAt = Date.now();
     $("mdbStart").disabled = true;
     log(`START ${S.live ? "LIVE" : "WATCH-ONLY"}${strategyById(S.strategy) ? " [" + strategyById(S.strategy).name + "]" : ""}: ${describe()} on ${triggerText()} x${S.inRow}`, "ok");
@@ -642,10 +664,33 @@
       } else if (!on && wake) { await wake.release(); wake = null; }
     } catch (e) {}
   }
+  let hiddenAt = null;
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") { if (running) keepAwake(true); }
-    else if (running) log("page hidden - the phone pauses the bot until you come back (it stops if ticks are missing 15 s)", "warn");
+    if (document.visibilityState === "visible") {
+      if (running && hiddenAt) {
+        lastTickAt = Date.now(); run = 0; keepAwake(true);
+        log(`back after ${Math.round((Date.now() - hiddenAt) / 1000)} s - carrying on`, "ok");
+      }
+      hiddenAt = null;
+    } else if (running) { hiddenAt = Date.now(); log("page hidden - paused. The bot carries on when you come back.", "warn"); }
   });
+  let actx = null;
+  function audioUnlock() {   // phones only allow sound that was started by a tap: call this from Start
+    try { actx = actx || new (window.AudioContext || window.webkitAudioContext)(); if (actx.state === "suspended") actx.resume(); } catch (e) {}
+  }
+  function alertUser(good) {
+    if (!S.alerts) return;
+    try { navigator.vibrate && navigator.vibrate(good ? [120, 80, 120] : [400, 150, 400]); } catch (e) {}
+    if (!actx) return;
+    try {
+      (good ? [660, 880, 1100] : [440, 330, 220]).forEach((f, i) => {
+        const o = actx.createOscillator(), g = actx.createGain(), s = actx.currentTime + i * 0.18;
+        o.type = "sine"; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, s); g.gain.exponentialRampToValueAtTime(0.3, s + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, s + 0.16);
+        o.connect(g); g.connect(actx.destination); o.start(s); o.stop(s + 0.17);
+      });
+    } catch (e) {}
+  }
   function stop(why) {
     if (!running) return;
     keepAwake(false);
@@ -653,6 +698,7 @@
     const bal = balance(), pl = bal != null && startBal != null ? bal - startBal : null;
     const note = settled() ? "" : " (trades still open - see the final result in the game)";
     log(`STOP: ${why}. Trades: ${trades}${pl != null ? `, P/L: ${pl >= 0 ? "+" : ""}$${pl.toFixed(2)}` : ""}${note}`, "warn");
+    if (why !== "stopped by you" && why !== "panel closed") alertUser(pl != null && pl >= 0 && !/loss|limit/.test(why));
   }
   // Normal limits: place no more trades, let the open ones settle, then stop with the true P/L.
   function finish(why) { if (running && !finishing) { finishing = why; log(`${why} - waiting for open trades to finish…`); } }
@@ -791,6 +837,45 @@
   $("f_dayLimit").addEventListener("change", () => renderStats());
   var statsReady = true; showTab();
 
+  // Plays the current settings many times on random digits (the real ticks behave like random digits),
+  // with the same trigger, cooldown, max trades / minutes, stop-loss and take-profit. No money involved.
+  function simulate(runs) {
+    const wc = winChance() ?? 0.5;
+    const b = tradeButton(S.button);
+    let pay = MODE[S.button] === currentMode() ? payoutPct(b) : null;
+    const est = pay == null;
+    if (est) pay = Math.max(1, (0.95 / wc - 1) * 100);
+    const st = +S.stakeSet > 0 ? +S.stakeSet : 1, gain = st * pay / 100;
+    const cd = Math.max(1, Math.ceil(+S.cooldown || 0)), ticks = Math.max(1, (+S.maxMinutes || 1) * 60);
+    let up = 0, sl = 0, tp = 0, sum = 0, nTr = 0, worst = 0, best = 0;
+    for (let s = 0; s < runs; s++) {
+      let pl = 0, tr = 0, row = 0, last = -1e9;
+      for (let k = 0; k < ticks && tr < S.maxTrades; k++) {
+        row = triggerHit(Math.floor(Math.random() * 10)) ? row + 1 : 0;
+        if (row < S.inRow) continue;
+        row = 0;
+        if (k - last < cd) continue;
+        if (S.stopLoss > 0 && st - pl > S.stopLoss) break;            // the bot won't risk passing the stop-loss
+        last = k; tr++; pl += Math.random() < wc ? gain : -st;
+        if (S.stopLoss > 0 && -pl >= S.stopLoss) { sl++; break; }
+        if (S.takeProfit > 0 && pl >= S.takeProfit) { tp++; break; }
+      }
+      sum += pl; nTr += tr; if (pl > 0) up++; worst = Math.min(worst, pl); best = Math.max(best, pl);
+    }
+    return { runs, pay, est, wc, up, sl, tp, avg: sum / runs, avgTr: nTr / runs, worst, best, ev: (wc * (1 + pay / 100) - 1) * 100 };
+  }
+  $("mdbTest").onclick = () => {
+    const r = simulate(1000), pc = n => Math.round(100 * n / r.runs) + "%", m = v => (v < 0 ? "-$" : "+$") + Math.abs(v).toFixed(2);
+    const out = $("mdbTestOut"); out.style.display = "";
+    out.innerHTML = `<b>1000 practice runs</b> of ${describe()} (${triggerText()} x${S.inRow}, $${S.stakeSet} stake), ` +
+      `win chance ${(r.wc * 100).toFixed(0)}%, payout +${r.pay.toFixed(1)}%${r.est ? " (estimated - open this game mode for the real one)" : ""}:<br>` +
+      `Ended in profit: <b>${pc(r.up)}</b> · hit take-profit: <b>${pc(r.tp)}</b> · hit stop-loss: <b>${pc(r.sl)}</b><br>` +
+      `Average per run: <b class="${r.avg >= 0 ? "ok" : "warn"}">${m(r.avg)}</b> over ${r.avgTr.toFixed(1)} trades · best ${m(r.best)} · worst ${m(r.worst)}<br>` +
+      `Each trade: <b class="${r.ev >= 0 ? "ok" : "warn"}">${r.ev >= 0 ? "+" : ""}${r.ev.toFixed(1)}%</b> of the stake on average. ` +
+      `Profitable runs happen by luck; over many runs the average is what you keep.`;
+    log(`test: ${pc(r.up)} of practice runs ended in profit, average ${m(r.avg)} per run`);
+  };
+
   $("mdbOnce").onclick = tradeOnce;
   $("mdbStart").onclick = start;
   $("mdbStop").onclick = () => stop("stopped by you");
@@ -798,7 +883,7 @@
   function onTick(d) {
     digits.push(d); if (digits.length > 24) digits.shift();
     $("mdbDigits").textContent = digits.join(" ");
-    if (!running || finishing) return;
+    if (!running || finishing || document.hidden) return;
     run = triggerHit(d) ? run + 1 : 0;
     if (run < S.inRow) return;
     run = 0;
@@ -878,6 +963,7 @@
 
     if (!running) return;
     if (!demo && !S.allowReal) { stop("account switched to REAL"); return; }
+    if (document.hidden) { lastTickAt = Date.now(); return; }   // paused while you are in another app/tab
     if (Date.now() - lastTickAt > 15000) { stop("no new ticks for 15 s (chart frozen? refresh the page)"); return; }
     if (finishing) { if (done) stop(finishing); return; }
     if (trades >= S.maxTrades) finish("reached max trades");
