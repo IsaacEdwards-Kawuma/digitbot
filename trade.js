@@ -4,28 +4,43 @@
   const E = window.Engine, $ = id => document.getElementById(id), PC = window.DB_PC || null;
   const DATA = "https://data-api.binance.vision/api/v3/";
   const MARKETS = {
-    forex: [["EURUSDT", "EUR/USD", "fx"], ["GBPUSDT", "GBP/USD", "fx"], ["AUDUSDT", "AUD/USD", "fx"], ["PAXGUSDT", "Gold XAU/USD", "gold"]],
-    crypto: [["BTCUSDT", "Bitcoin BTC/USDT", "c"], ["ETHUSDT", "Ethereum ETH/USDT", "c"], ["BNBUSDT", "BNB/USDT", "c"], ["SOLUSDT", "Solana SOL/USDT", "c"],
-             ["XRPUSDT", "XRP/USDT", "c"], ["DOGEUSDT", "Dogecoin DOGE/USDT", "c"], ["ADAUSDT", "Cardano ADA/USDT", "c"], ["TRXUSDT", "TRON TRX/USDT", "c"]],
+    forex: [["EURUSDT", "EUR/USD", "fx", "spot", "Forex"], ["USDTTRY", "USD/TRY (Turkish lira)", "fx", "spot", "Forex"], ["USDTZAR", "USD/ZAR (S. African rand)", "fx", "spot", "Forex"],
+            ["USDTBRL", "USD/BRL (Brazilian real)", "fx", "spot", "Forex"], ["USDTMXN", "USD/MXN (Mexican peso)", "fx", "spot", "Forex"], ["USDTARS", "USD/ARS (Argentine peso)", "fx", "spot", "Forex"],
+            ["USDTCOP", "USD/COP (Colombian peso)", "fx", "spot", "Forex"], ["USDTIDR", "USD/IDR (Indonesian rupiah)", "fx", "spot", "Forex"], ["USDTKZT", "USD/KZT (Kazakh tenge)", "fx", "spot", "Forex"],
+            ["XAUUSDT", "Gold XAU/USD", "gold", "fut", "Metals & energy"], ["PAXGUSDT", "Gold (PAXG token)", "gold", "spot", "Metals & energy"], ["XAGUSDT", "Silver XAG/USD", "idx", "fut", "Metals & energy"],
+            ["XPTUSDT", "Platinum XPT/USD", "idx", "fut", "Metals & energy"], ["XPDUSDT", "Palladium XPD/USD", "idx", "fut", "Metals & energy"], ["COPPERUSDT", "Copper", "idx", "fut", "Metals & energy"],
+            ["CLUSDT", "Crude oil (WTI)", "idx", "fut", "Metals & energy"], ["NATGASUSDT", "Natural gas", "idx", "fut", "Metals & energy"]],
+    crypto: [["BTCUSDT", "Bitcoin BTC"], ["ETHUSDT", "Ethereum ETH"], ["BNBUSDT", "BNB"], ["SOLUSDT", "Solana SOL"], ["XRPUSDT", "XRP"], ["DOGEUSDT", "Dogecoin DOGE"],
+             ["ADAUSDT", "Cardano ADA"], ["TRXUSDT", "TRON TRX"], ["LINKUSDT", "Chainlink LINK"], ["AVAXUSDT", "Avalanche AVAX"], ["SUIUSDT", "Sui SUI"], ["LTCUSDT", "Litecoin LTC"],
+             ["BCHUSDT", "Bitcoin Cash BCH"], ["XLMUSDT", "Stellar XLM"], ["DOTUSDT", "Polkadot DOT"], ["HBARUSDT", "Hedera HBAR"], ["NEARUSDT", "NEAR"], ["UNIUSDT", "Uniswap UNI"],
+             ["AAVEUSDT", "Aave AAVE"], ["ATOMUSDT", "Cosmos ATOM"], ["ETCUSDT", "Ethereum Classic ETC"], ["FILUSDT", "Filecoin FIL"], ["APTUSDT", "Aptos APT"], ["ARBUSDT", "Arbitrum ARB"],
+             ["OPUSDT", "Optimism OP"], ["INJUSDT", "Injective INJ"], ["ICPUSDT", "Internet Computer ICP"], ["TAOUSDT", "Bittensor TAO"], ["FETUSDT", "Fetch.ai FET"], ["RENDERUSDT", "Render"],
+             ["WLDUSDT", "Worldcoin WLD"], ["ENAUSDT", "Ethena ENA"], ["ONDOUSDT", "Ondo ONDO"], ["HYPEUSDT", "Hyperliquid HYPE"], ["SEIUSDT", "Sei SEI"], ["TIAUSDT", "Celestia TIA"],
+             ["POLUSDT", "Polygon POL"], ["ZECUSDT", "Zcash ZEC"], ["TRUMPUSDT", "TRUMP"], ["PEPEUSDT", "Pepe PEPE (spot only)", "c", "so"], ["SHIBUSDT", "Shiba Inu SHIB (spot only)", "c", "so"]].map(m => [m[0], m[1], m[2] || "c", m[3] || "", "Crypto"]),
     mt5: [["EURUSD", "EUR/USD", "fx"], ["GBPUSD", "GBP/USD", "fx"], ["USDJPY", "USD/JPY", "fx"], ["AUDUSD", "AUD/USD", "fx"], ["USDCAD", "USD/CAD", "fx"],
           ["USDCHF", "USD/CHF", "fx"], ["NZDUSD", "NZD/USD", "fx"], ["EURJPY", "EUR/JPY", "fx"], ["GBPJPY", "GBP/JPY", "fx"], ["XAUUSD", "Gold XAU/USD", "gold"],
           ["XAGUSD", "Silver XAG/USD", "idx"], ["US30", "Dow Jones (US30)", "idx"], ["NAS100", "Nasdaq (NAS100)", "idx"]],
   };
-  const TF_MS = { "15m": 9e5, "1h": 36e5, "4h": 144e5, "1d": 864e5 };
+  const TF_MS = { "1s": 1e3, "1m": 6e4, "3m": 18e4, "5m": 3e5, "15m": 9e5, "30m": 18e5, "1h": 36e5, "4h": 144e5, "1d": 864e5 };
   const COLORS = ["#38bdf8", "#f59e0b", "#a78bfa", "#22c55e", "#f472b6"];
   let mode = location.hash === "#crypto" ? "crypto" : "forex";
   let bars = [], B = null, lastClosedT = 0, loading = false, lastFull = 0;
   const isMT5 = () => mode === "forex" && !!PC && $("fxsrc").value === "mt5";
   const mtype = () => mode === "crypto" ? $("mtype").value : isMT5() ? "mt5" : "spot";
-  const mlist = () => isMT5() ? MARKETS.mt5 : MARKETS[mode];
-  const restBase = () => mtype() === "futures" ? "https://fapi.binance.com/fapi/v1/" : DATA;
+  let extra = [];                                // coins typed in "Other coin"
+  const mlist = () => isMT5() ? MARKETS.mt5 : mode === "crypto" ? MARKETS.crypto.filter(m => mtype() !== "futures" || m[3] !== "so").concat(extra) : MARKETS.forex;
+  // where the prices come from: Binance Spot or Futures (1-second candles only exist on Spot)
+  const dataSrc = () => isMT5() ? "mt5" : mode === "crypto" ? mtype() : (market()[3] === "fut" ? "futures" : "spot");
+  const tfReq = () => { const tf = $("tf").value; if (tf !== "1s") return tf; return isMT5() || (mode === "forex" && dataSrc() === "futures") ? "1m" : "1s"; };
+  const srcFor = () => tfReq() === "1s" ? "spot" : dataSrc();
+  const restBase = () => srcFor() === "futures" ? "https://fapi.binance.com/fapi/v1/" : DATA;
 
   // ---------------------------------------------------------------- helpers
   const dec = p => p >= 1000 ? 2 : p >= 10 ? 3 : p >= 1 ? 5 : 6;
   const fmt = (p, d) => p == null || isNaN(p) ? "–" : (+p).toFixed(d == null ? dec(p) : d);
   const money = v => (v < 0 ? "-$" : "$") + Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const market = () => mlist().find(m => m[0] === $("sym").value) || mlist()[0];
-  const label = s => (MARKETS.forex.concat(MARKETS.crypto, MARKETS.mt5).find(m => m[0] === s) || [s, s])[1];
+  const label = s => (MARKETS.forex.concat(MARKETS.crypto, MARKETS.mt5, extra).find(m => m[0] === s) || [s, s])[1];
   function log(msg) { const d = document.createElement("div"); d.textContent = new Date().toTimeString().slice(0, 8) + " " + msg; $("log").appendChild(d); $("log").scrollTop = 1e9; }
   const params = () => ({ sl_atr: +$("btSl").value || 1.5, rr: +$("btRr").value || 2, breakeven_r: +$("btBe").value, longOnly: $("btLong").checked });
 
@@ -35,30 +50,32 @@
     return (await r.json()).map(k => ({ t: k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5] }));
   }
   async function mt5Candles(n) {               // prices from MetaTrader 5, through the PC bot
-    const sym = $("sym").value, tf = $("tf").value, r = await api(`/api/candles?symbol=${sym}&tf=${tf}&n=${n}`);
+    const sym = $("sym").value, tf = tfReq(), r = await api(`/api/candles?symbol=${sym}&tf=${tf}&n=${n}`);
     if (r.error) throw new Error(r.error);
     return { sym, tf, bars: r.bars.map(k => ({ t: k[0], o: k[1], h: k[2], l: k[3], c: k[4], v: k[5] })) };
   }
-  async function loadHistory() {
-    if (loading) return; loading = true;
+  let lastLoad = 0;
+  async function loadHistory(silent) {
+    if (loading) return; loading = true; lastLoad = Date.now();
     if (isMT5()) {
-      $("px").textContent = "loading…";
+      if (!silent) $("px").textContent = "loading…";
       if (ws) { ws.onclose = null; ws.close(); ws = null; wsKey = ""; }
       try {
         const r = await mt5Candles(3000);
-        bars = r.bars; lastClosedT = 0; recompute(true); fitChart(); mt5Alive = Date.now();
-        log(`loaded ${bars.length} bars of ${label(r.sym)} ${r.tf} from MetaTrader 5`);
+        bars = r.bars; if (!silent) lastClosedT = 0; recompute(true); if (!silent) fitChart(); mt5Alive = Date.now(); afterLoad(silent);
+        if (!silent) log(`loaded ${bars.length} bars of ${label(r.sym)} ${r.tf} from MetaTrader 5`);
       } catch (e) { $("px").textContent = "no data"; bars = []; log("MetaTrader 5: " + e.message + (/not selected/.test(e.message) ? " - choose 'Forex – MetaTrader 5' in ⚡ Live trading and press Save" : "")); }
       loading = false; return;
     }
-    const sym = $("sym").value, tf = $("tf").value, per = mtype() === "futures" ? 1500 : 1000;
-    $("px").textContent = "loading…";
+    const sym = $("sym").value, tf = tfReq(), per = srcFor() === "futures" ? 1500 : 1000;
+    if (!silent) $("px").textContent = "loading…";
     try {
       let all = [], end = null;
       for (let k = 0; k < 3 && all.length < 3000; k++) { const part = await klines(sym, tf, per, end); if (!part.length) break; all = part.concat(all); end = part[0].t - 1; if (part.length < per) break; }
-      bars = all.slice(-3000); lastClosedT = 0; recompute(true); fitChart(); connectWS();
-      log(`loaded ${bars.length} bars of ${label(sym)} ${tf} (${mtype()})`);
-    } catch (e) { $("px").textContent = "no data"; log("could not load prices: " + e.message); }
+      if (sym !== $("sym").value || tf !== tfReq()) { loading = false; return; }
+      bars = all.slice(-3000); if (!silent) lastClosedT = 0; recompute(true); if (!silent) fitChart(); connectWS(); afterLoad(silent);
+      if (!silent) log(`loaded ${bars.length} bars of ${label(sym)} ${tf === "1s" ? "live 1-second" : tf} (Binance ${srcFor()})`);
+    } catch (e) { if (!silent) { $("px").textContent = "no data"; log("could not load prices: " + e.message); } }
     loading = false;
   }
   let mt5Alive = 0;
@@ -66,7 +83,7 @@
     if (!isMT5() || loading || !bars.length) return;
     try {
       const r = await mt5Candles(3);
-      if (r.sym !== $("sym").value || r.tf !== $("tf").value || !isMT5()) return;
+      if (r.sym !== $("sym").value || r.tf !== tfReq() || !isMT5()) return;
       const before = bars.length; r.bars.forEach(mergeBar); mt5Alive = Date.now();
       if (bars.length !== before || Date.now() - lastFull > 3000) recompute(true); else liveTick();
     } catch (e) { /* shown by the status line */ }
@@ -75,8 +92,8 @@
     if (isMT5()) return;
     if (loading || !bars.length || Date.now() - wsAlive < 20000) return;
     try {
-      const sym = $("sym").value, tf = $("tf").value, k = await klines(sym, tf, 3);
-      if (sym !== $("sym").value || tf !== $("tf").value) return;
+      const sym = $("sym").value, tf = tfReq(), k = await klines(sym, tf, 3);
+      if (sym !== $("sym").value || tf !== tfReq()) return;
       for (const x of k) mergeBar(x);
       recompute(true);
     } catch (e) { /* try again next time */ }
@@ -91,17 +108,17 @@
   let ws = null, wsAlive = 0, wsN = 0, wsKey = "";
   function connectWS() {
     if (isMT5()) return;
-    const sym = $("sym").value.toLowerCase(), tf = $("tf").value, key = sym + tf + mtype();
+    const sym = $("sym").value.toLowerCase(), tf = tfReq(), key = sym + tf + srcFor();
     if (ws && wsKey === key && ws.readyState <= 1) return;
     if (ws) { ws.onclose = null; ws.close(); }
     wsKey = key; wsN = 0;
-    const url = mtype() === "futures" ? `wss://fstream.binance.com/market/ws/${sym}@kline_${tf}` : `wss://data-stream.binance.vision/ws/${sym}@kline_${tf}`;
+    const url = srcFor() === "futures" ? `wss://fstream.binance.com/market/ws/${sym}@kline_${tf}` : `wss://data-stream.binance.vision/ws/${sym}@kline_${tf}`;
     ws = new WebSocket(url);
     ws.onmessage = m => {
       const k = JSON.parse(m.data).k; if (!k || wsKey !== key) return;
       wsAlive = Date.now(); wsN++;
       mergeBar({ t: k.t, o: +k.o, h: +k.h, l: +k.l, c: +k.c, v: +k.v });
-      if (k.x || Date.now() - lastFull > 3000) recompute(true); else liveTick();
+      if (k.x || Date.now() - lastFull > (tf === "1s" ? 1000 : 3000)) recompute(true); else liveTick();
     };
     ws.onclose = () => setTimeout(() => { if (wsKey === key) { ws = null; connectWS(); } }, 3000);
   }
@@ -113,30 +130,34 @@
       return;
     }
     const age = (Date.now() - wsAlive) / 1000;
-    $("live").innerHTML = wsAlive && age < 15 ? `🟢 <b>live</b> · ${mtype() === "futures" ? "Binance Futures" : "Binance Spot"} feed · last update ${age.toFixed(0)} s ago` +
+    const note = $("tf").value === "1s" && tfReq() !== "1s" ? " · (1-second candles aren't available for this market: showing 1-minute)" : tfReq() === "1s" && mtype() === "futures" ? " · (1-second candles come from Binance Spot)" : "";
+    $("live").innerHTML = wsAlive && age < 15 ? `🟢 <b>live</b> · ${srcFor() === "futures" ? "Binance Futures" : "Binance Spot"} feed · last update ${age.toFixed(0)} s ago${note}` +
       (PC ? ` · <span class="pc">PC bot connected</span>` : "") : `🟡 waiting for the live feed… (prices refresh every 15 s meanwhile)`;
   }, 1000);
   // the last bar is still forming; signals only use closed bars
-  const closedIdx = () => { if (isMT5()) return Math.max(0, B.n - 2); const tfms = TF_MS[$("tf").value]; let i = B.n - 1; while (i > 0 && B.t[i] + tfms > Date.now()) i--; return i; };
+  const closedIdx = () => { if (isMT5()) return Math.max(0, B.n - 2); const tfms = TF_MS[tfReq()]; let i = B.n - 1; while (i > 0 && B.t[i] + tfms > Date.now()) i--; return i; };
 
   function liveTick() {                          // cheap update between full recomputes
     const x = bars[bars.length - 1]; if (!x || !S.c) return;
     S.c.update(cbar(x)); if (S.vol) S.vol.update(vbar(x));
-    $("px").textContent = fmt(x.c); lastPrice[$("sym").value] = x.c; managePositions();
+    $("px").textContent = fmt(x.c); lastPrice[$("sym").value] = x.c; managePositions(); checkAlerts(x.c);
+    const nb = $("nowPx"); if (nb) nb.textContent = fmt(x.c);
   }
   function recompute() {
     lastFull = Date.now();
     B = E.addAll(bars);
-    const i = B.n - 1, ci = closedIdx(), p = B.c[i], first = B.c[Math.max(0, i - Math.round(864e5 / TF_MS[$("tf").value]))];
+    const i = B.n - 1, ci = closedIdx(), p = B.c[i];
+    let j = i; while (j > 0 && B.t[j] > B.t[i] - 864e5) j--;
+    const first = B.o[j], span = B.t[i] - B.t[j] >= 864e5 - TF_MS[tfReq()] ? "24h" : "on this chart";
     $("px").textContent = fmt(p);
     const ch = (p - first) / first * 100;
-    $("chg").innerHTML = `<span class="${ch >= 0 ? "up" : "dn"}">${ch >= 0 ? "▲" : "▼"} ${ch.toFixed(2)}% (24h)</span>`;
+    $("chg").innerHTML = `<span class="${ch >= 0 ? "up" : "dn"}">${ch >= 0 ? "▲" : "▼"} ${ch.toFixed(2)}% (${span})</span>`;
     const v = E.marketView(B);
     $("bias").innerHTML = `<span class="tag ${v.score >= 25 ? "buy" : v.score <= -25 ? "sell" : "none"}">${v.bias} ${v.score > 0 ? "+" : ""}${v.score}</span>`;
     $("src").textContent = isMT5() ? "price from your MetaTrader 5 broker" : mode === "forex" ? `price from Binance ${$("sym").value} (follows ${label($("sym").value)})` : "live Binance price";
     $("view").innerHTML = `<b>${v.bias}</b> (score ${v.score}, from -100 to +100)<ul style="margin:4px 0 0">${v.notes.map(n => `<li>${n}</li>`).join("")}</ul>`;
-    renderSignals(ci); renderCalc(ci); draw();
-    if (B.t[ci] !== lastClosedT) { const isNew = lastClosedT !== 0; lastClosedT = B.t[ci]; if (isNew) onNewBar(ci); }
+    renderSignals(ci); renderCalc(ci); draw(); renderNow(ci, v, ch, span); checkAlerts(p);
+    if (B.t[ci] !== lastClosedT) { const isNew = lastClosedT !== 0; lastClosedT = B.t[ci]; if (isNew) { onNewBar(ci); signalAlerts(ci); autoBacktest(); } }
     managePositions(); renderAccount();
   }
 
@@ -169,6 +190,7 @@
     if (ind("macd")) { S.mh = chart.addSeries(LW.HistogramSeries, { priceLineVisible: false, lastValueVisible: false }, pane);
                        S.m = line("#38bdf8", pane, 1.5); S.ms = line("#f59e0b", pane, 1.2); pane++; }
     S.mk = LW.createSeriesMarkers(S.c, []);
+    chart.subscribeClick(pr => { if (pr && pr.point && S.c) { const v = S.c.coordinateToPrice(pr.point.y); if (v > 0) $("alPx").value = +v.toPrecision(6); } });   // click = alert price
     const panes = chart.panes(); if (panes.length > 1) panes.slice(1).forEach(p => p.setHeight(110));
   }
   function fitChart() { if (chart) chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, bars.length - 160), to: bars.length + 5 }); }
@@ -206,6 +228,7 @@
     S.mk.setMarkers(mk);
     // my trades: practice + live (PC) positions as lines
     posLines.forEach(l => S.c.removePriceLine(l)); posLines = [];
+    alerts.filter(a => a.sym === $("sym").value).forEach(a => posLines.push(S.c.createPriceLine({ price: a.price, color: "#f59e0b", lineWidth: 1, lineStyle: 1, axisLabelVisible: true, title: "🔔 " + a.op })));
     if (ind("pos")) {
       const sym = $("sym").value, add = (price, color, title) => posLines.push(S.c.createPriceLine({ price, color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title }));
       acct.pos.filter(x => x.sym === sym).forEach(x => { add(x.entry, "#e2e8f0", "practice " + x.side); add(x.sl, "#ef4444", "SL"); add(x.tp, "#22c55e", "TP"); });
@@ -237,8 +260,11 @@
   }
 
   // ---------------------------------------------------------------- backtest
-  function runBacktest() {
-    if (!B) return;
+  let lastBt = 0;
+  function autoBacktest() { if (!$("t_bt").classList.contains("hide") && Date.now() - lastBt > 60000) runBacktest(true); }
+  function afterLoad(silent) { if (!silent && !$("t_bt").classList.contains("hide")) runBacktest(true); }
+  function runBacktest(quiet) {
+    if (!B) return; lastBt = Date.now();
     const p = params(), spread = B.c[B.n - 1] * (+$("btCost").value || 0) / 100, risk = +$("btRisk").value || 1;
     const res = E.backtestAll(B, p, spread, risk), c = s => s.trades ? `<td>${s.trades}</td><td>${s.win_rate.toFixed(0)}%</td><td>${Math.min(s.profit_factor, 99).toFixed(2)}</td><td class="${s.return_pct >= 0 ? "up" : "dn"}">${s.return_pct >= 0 ? "+" : ""}${s.return_pct.toFixed(1)}%</td><td>${s.max_dd_pct.toFixed(1)}%</td>`
                                                      : `<td>0</td><td>–</td><td>–</td><td>–</td><td>–</td>`;
@@ -260,7 +286,8 @@
          <br>Next step: practise it for weeks and compare with these numbers.`
       : `❌ <b>No strategy passed</b> on ${label($("sym").value)} ${$("tf").value} with these settings. Don't trade this market/timeframe with them; try another timeframe or market.`;
     if (best) $("useBest").onclick = () => { $("ptStrat").value = best.name; draw(); showTab("pt"); log("practice strategy set to " + E.STRATEGIES[best.name].name); };
-    log(`backtest ${label($("sym").value)} ${$("tf").value}: ${res.filter(r => r.pass).length} of 5 strategies passed`);
+    if (quiet !== true) log(`backtest ${label($("sym").value)} ${$("tf").value}: ${res.filter(r => r.pass).length} of 5 strategies passed`);
+    $("btVerdict").insertAdjacentHTML("beforeend", `<div class="note">Updated ${new Date().toTimeString().slice(0, 8)} · it refreshes by itself when a new candle closes.</div>`);
   }
 
   // ---------------------------------------------------------------- practice account
@@ -363,7 +390,8 @@
     $("title").textContent = mode === "forex" ? "💱 Forex" : "₿ Crypto";
     $("swForex").classList.toggle("on", mode === "forex"); $("swCrypto").classList.toggle("on", mode === "crypto");
     $("fxWrap").classList.toggle("hide", !(mode === "forex" && PC));
-    $("sym").innerHTML = mlist().map(m => `<option value="${m[0]}">${m[1]}</option>`).join("");
+    fillMarkets();
+    $("otherWrap").style.display = mode === "crypto" ? "" : "none";
     $("btLong").checked = $("ptLong").checked = mode === "crypto" && mtype() === "spot";
     $("mtWrap").style.display = mode === "crypto" ? "" : "none";
     $("btCost").value = mode === "crypto" ? 0.1 : 0.02;
@@ -374,9 +402,111 @@
   $("stratHelp").innerHTML = "<ul>" + Object.values(E.STRATEGIES).map(s => `<li><b>${s.name}</b>: ${s.desc}</li>`).join("") + "</ul>";
   document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => showTab(b.dataset.t));
   window.addEventListener("hashchange", setMode);
-  $("sym").onchange = $("tf").onchange = () => { if (auto) { auto = null; $("ptState").textContent = "Auto stopped (market changed)."; log("auto stopped: market or timeframe changed"); } $("btTable").innerHTML = ""; loadHistory(); };
+  $("sym").onchange = $("tf").onchange = () => { watch(); if (auto) { auto = null; $("ptState").textContent = "Auto stopped (market changed)."; log("auto stopped: market or timeframe changed"); } $("btTable").innerHTML = ""; loadHistory(); };
   $("ptStrat").onchange = draw; $("ptLong").onchange = draw;
-  $("mtype").onchange = () => { if (auto) { auto = null; $("ptState").textContent = "Auto stopped (market changed)."; } $("btTable").innerHTML = ""; loadHistory(); };
+  $("mtype").onchange = () => { fillMarkets($("sym").value); if (auto) { auto = null; $("ptState").textContent = "Auto stopped (market changed)."; } $("btTable").innerHTML = ""; loadHistory(); };
+  function fillMarkets(keep) {
+    const groups = {}; mlist().forEach(m => (groups[m[4] || "Markets"] = groups[m[4] || "Markets"] || []).push(m));
+    $("sym").innerHTML = Object.entries(groups).map(([g, ms]) => `<optgroup label="${g}">${ms.map(m => `<option value="${m[0]}">${m[1]}</option>`).join("")}</optgroup>`).join("") +
+      (mode === "forex" && !isMT5() ? `<optgroup label="More forex (GBP, JPY, AUD, CHF…)"><option disabled>use MetaTrader 5 (PC app) for these</option></optgroup>` : "");
+    if (keep && [...$("sym").options].some(o => o.value === keep)) $("sym").value = keep;
+  }
+  $("symOther").onkeydown = async e => {
+    if (e.key !== "Enter") return;
+    let s = $("symOther").value.trim().toUpperCase().replace(/[^A-Z0-9]/g, ""); if (!s) return; if (!/USDT$|USDC$|FDUSD$|BTC$/.test(s)) s += "USDT";
+    try { await klines(s, "1h", 2); } catch (x) { return alert(`${s} was not found on Binance ${mtype()}.`); }
+    if (!mlist().some(m => m[0] === s)) extra.push([s, s, "c", "", "Your coins"]);
+    fillMarkets(s); $("sym").onchange(); $("symOther").value = "";
+  };
+  // ---- view: full / mini, chart size, full screen
+  const SIZES = [600, 760, 940, 440];
+  let sizeI = +(localStorage.getItem("dbChartSize") || 0) % SIZES.length;
+  const applySize = () => { $("lw").style.height = SIZES[sizeI] + "px"; $("cSize").textContent = sizeI === SIZES.length - 1 ? "⤢ Bigger chart" : sizeI === SIZES.length - 2 ? "⤡ Smaller chart" : "⤢ Bigger chart"; };
+  $("cSize").onclick = () => { sizeI = (sizeI + 1) % SIZES.length; localStorage.setItem("dbChartSize", sizeI); applySize(); };
+  $("cFull").onclick = () => { const c = $("chartbox"); document.fullscreenElement ? document.exitFullscreen() : (c.requestFullscreen || c.webkitRequestFullscreen).call(c); };
+  document.addEventListener("fullscreenchange", () => { $("cFull").textContent = document.fullscreenElement ? "✕ Exit full screen" : "⛶ Full screen"; });
+  $("cFit").onclick = fitChart;
+  $("viewMode").value = localStorage.getItem("dbView") || "full";
+  const applyView = () => { document.body.classList.toggle("mini", $("viewMode").value === "mini"); };
+  $("viewMode").onchange = () => { localStorage.setItem("dbView", $("viewMode").value); applyView(); };
+  applyView(); applySize();
+  // ---- the "Now" box: price + every strategy's latest signal
+  function renderNow(ci, v, ch, span) {
+    const p = Object.assign(params(), { longOnly: false });
+    const rows = Object.entries(E.STRATEGIES).map(([k, st]) => {
+      let f = null; for (let i = ci; i > Math.max(210, ci - 30); i--) { const s = E.signalAt(B, k, i, p); if (s) { f = { i, s }; break; } }
+      return `<div class="sig"><span>${st.name}</span>${f ? `<span><span class="tag ${f.s.side}">${f.s.side.toUpperCase()}</span> ${ci - f.i === 0 ? "now" : (ci - f.i) + " bars ago"}</span>` : `<span class="mut">–</span>`}</div>`;
+    }).join("");
+    $("sNow").innerHTML = `<div class="mut" style="font-size:12px">${label($("sym").value)} · ${$("tf").options[$("tf").selectedIndex].text}</div>
+      <div class="big" id="nowPx">${fmt(B.c[B.n - 1])}</div><div><span class="${ch >= 0 ? "up" : "dn"}">${ch >= 0 ? "▲" : "▼"} ${ch.toFixed(2)}%</span> <span class="mut">${span}</span></div>
+      <div style="margin:6px 0"><span class="tag ${v.score >= 25 ? "buy" : v.score <= -25 ? "sell" : "none"}">${v.bias} ${v.score > 0 ? "+" : ""}${v.score}</span></div>
+      <div class="mut" style="font-size:11.5px;margin-bottom:3px">Latest signal (last 30 closed bars)</div>${rows}`;
+  }
+  // ---- alerts: price above/below and new strategy signals; sound + page toast + browser pop-up
+  let alerts = []; try { alerts = JSON.parse(localStorage.getItem("dbAlerts") || "[]"); } catch (e) {}
+  const saveAlerts = () => { localStorage.setItem("dbAlerts", JSON.stringify(alerts)); renderAlerts(); };
+  $("alStrat").innerHTML = `<option value="all">any strategy</option>` + Object.entries(E.STRATEGIES).map(([k, s]) => `<option value="${k}">${s.name}</option>`).join("");
+  $("alSig").checked = localStorage.getItem("dbAlSig") === "1"; $("alStrat").value = localStorage.getItem("dbAlStrat") || "all";
+  $("alSig").onchange = () => localStorage.setItem("dbAlSig", $("alSig").checked ? "1" : "");
+  $("alStrat").onchange = () => localStorage.setItem("dbAlStrat", $("alStrat").value);
+  function renderAlerts() {
+    $("alList").innerHTML = alerts.length ? alerts.map((a, i) => `<div class="al"><span>${label(a.sym)} ${a.op} <b>${fmt(a.price)}</b></span><button data-al="${i}">✕</button></div>`).join("")
+      : `<div class="mut" style="font-size:12px">No price alerts.</div>`;
+    const ok = "Notification" in window && Notification.permission === "granted";
+    $("alPerm").textContent = ok ? "✓ Pop-up notifications on" : "Turn on pop-up notifications"; $("alPerm").disabled = ok;
+    if (B) draw();
+  }
+  $("alList").onclick = e => { const i = e.target.dataset.al; if (i != null) { alerts.splice(+i, 1); saveAlerts(); } };
+  $("alAdd").onclick = () => {
+    const price = +$("alPx").value; if (!(price > 0)) return alert("Type the alert price first.");
+    const now = B ? B.c[B.n - 1] : price;
+    $("alPx").value = "";
+    if (($("alOp").value === "above" && now >= price) || ($("alOp").value === "below" && now <= price))
+      return notify(`${label($("sym").value)} is already ${$("alOp").value} ${fmt(price)}`, `price now ${fmt(now)}`);
+    alerts.push({ sym: $("sym").value, op: $("alOp").value, price, t: Date.now() }); saveAlerts();
+    log(`alert added: ${label($("sym").value)} ${$("alOp").value} ${fmt(price)}`);
+  };
+  $("alPerm").onclick = () => { if ("Notification" in window) Notification.requestPermission().then(renderAlerts); else alert("This browser has no pop-up notifications; alerts still show here with a sound."); };
+  function beep() { try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.frequency.value = 880; g.gain.value = 0.08; o.connect(g); g.connect(a.destination); o.start(); setTimeout(() => { o.frequency.value = 1320; }, 150); setTimeout(() => { o.stop(); a.close(); }, 320); } catch (e) {} }
+  function notify(title, body) {
+    beep(); log(`🔔 ${title}: ${body}`);
+    const d = document.createElement("div"); d.textContent = `🔔 ${title} - ${body}`; $("toast").appendChild(d); setTimeout(() => d.remove(), 9000);
+    try { if ("Notification" in window && Notification.permission === "granted") new Notification("DigitBot: " + title, { body, tag: "db" + title + body }); } catch (e) {}
+  }
+  function checkAlerts(px) {
+    const sym = $("sym").value; let hit = false;
+    alerts = alerts.filter(a => { if (a.sym !== sym) return true; const f = a.op === "above" ? px >= a.price : px <= a.price;
+      if (f) { notify(`${label(sym)} ${a.op} ${fmt(a.price)}`, `price now ${fmt(px)}`); hit = true; } return !f; });
+    if (hit) saveAlerts();
+  }
+  function signalAlerts(ci) {
+    if (!$("alSig").checked || !B) return;
+    const p = Object.assign(params(), { longOnly: false }), which = $("alStrat").value;
+    Object.entries(E.STRATEGIES).filter(([k]) => which === "all" || k === which).forEach(([k, st]) => {
+      const s = E.signalAt(B, k, ci, p);
+      if (s) notify(`${s.side.toUpperCase()} signal on ${label($("sym").value)} ${$("tf").value}`, `${st.name}: ${s.why}. Stop ${fmt(s.sl)}, target ${fmt(s.tp)}`);
+    });
+  }
+  renderAlerts();
+  // ---- watchlist: live prices of the other markets (click to open)
+  async function watch() {
+    if (isMT5() || document.hidden) { if (isMT5()) $("watch").innerHTML = `<div class="mut" style="font-size:12px">Your MetaTrader 5 markets are in the Market list.</div>`; return; }
+    const list = mlist().slice(0, 24), spot = list.filter(m => (mode === "crypto" ? mtype() !== "futures" : m[3] !== "fut")).map(m => m[0]), fut = list.map(m => m[0]).filter(s => !spot.includes(s));
+    const got = {};
+    try {
+      if (spot.length) (await (await fetch(`${DATA}ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(spot))}&type=MINI`)).json()).forEach(x => got[x.symbol] = x);
+      if (fut.length) await Promise.all(fut.map(async s => { try { got[s] = await (await fetch(`https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=${s}`)).json(); } catch (e) {} }));
+    } catch (e) { return; }
+    $("watch").innerHTML = list.map(m => { const x = got[m[0]]; if (!x || !x.lastPrice) return "";
+      const c = +x.lastPrice, ch = (c - +x.openPrice) / +x.openPrice * 100;
+      return `<div class="wl ${m[0] === $("sym").value ? "on" : ""}" data-sym="${m[0]}"><span>${m[1]}</span><span><b>${fmt(c)}</b> <span class="${ch >= 0 ? "up" : "dn"}">${ch >= 0 ? "+" : ""}${ch.toFixed(2)}%</span></span></div>`; }).join("");
+  }
+  $("watch").onclick = e => { const r = e.target.closest(".wl"); if (r) { $("sym").value = r.dataset.sym; $("sym").onchange(); } };
+  setInterval(watch, 10000); setTimeout(watch, 1500);
+  // ---- auto-refresh: re-download the history now and then (the chart itself moves live)
+  setInterval(() => { if (!$("autoRef").checked || loading || document.hidden) return;
+    const per = ["1s", "1m", "3m", "5m"].includes($("tf").value) ? 120000 : 300000; if (Date.now() - lastLoad > per) loadHistory(true); }, 15000);
+  // click the chart to put that price in the alert box
   $("fxsrc").onchange = () => { localStorage.setItem("dbFxSrc", $("fxsrc").value); setMode(); };
   if (PC && localStorage.getItem("dbFxSrc") === "mt5") $("fxsrc").value = "mt5";
   setInterval(mt5Tick, 2000);
@@ -484,6 +614,7 @@
     };
     $("lvAutoOn").onclick = () => {
       if (!needMatch()) return;
+      if (["1s"].includes($("tf").value)) return alert("Auto trading needs 1-minute candles or longer. Pick M1 or more.");
       api("/api/auto", { on: true, symbol: $("sym").value, tf: $("tf").value, strategy: $("lvStrat").value, untested: $("lvUntested").checked });
     };
     $("lvAutoOff").onclick = () => api("/api/auto", { on: false });

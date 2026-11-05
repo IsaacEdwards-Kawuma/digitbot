@@ -8,7 +8,25 @@
   :root { --bg:#0f172a; --card:#1e293b; --line:#334155; --tx:#e2e8f0; --mut:#94a3b8; --acc:#0ea5b7; --up:#22c55e; --dn:#ef4444; }
   * { box-sizing: border-box; }
   body { margin: 0; background: var(--bg); color: var(--tx); font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
-  .wrap { max-width: 1100px; margin: 0 auto; padding: 10px 12px 40px; }
+  .wrap { max-width: 1760px; margin: 0 auto; padding: 10px 14px 40px; }
+  .main { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 14px; align-items: start; }
+  .side { position: sticky; top: 8px; display: flex; flex-direction: column; gap: 10px; max-height: calc(100vh - 16px); overflow: auto; }
+  .sbox { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px; }
+  .sbox h3 { margin: 0 0 6px; font-size: .95rem; }
+  .sbox select, .sbox input { padding: 5px 6px; font-size: 13px; }
+  .now .big { font: 700 1.7rem ui-monospace, monospace; } .now .sig { display: flex; justify-content: space-between; gap: 6px; padding: 3px 0; border-bottom: 1px solid #1e293b; font-size: 12.5px; }
+  .wl { display: flex; justify-content: space-between; padding: 4px 6px; border-radius: 6px; cursor: pointer; font-size: 12.5px; } .wl:hover, .wl.on { background: #0b1220; }
+  .wl b { font: 600 12.5px ui-monospace, monospace; }
+  .al { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; padding: 3px 0; border-bottom: 1px solid #1e293b; }
+  .al button { padding: 1px 7px; font-size: 12px; }
+  .ctool { display: flex; gap: 6px; margin: 0 0 6px; flex-wrap: wrap; } .ctool button { padding: 4px 9px; font-size: 12.5px; }
+  .chartbox:fullscreen { background: #0b1220; padding: 8px; } .chartbox:fullscreen #lw { height: calc(100vh - 56px) !important; }
+  #toast { position: fixed; right: 16px; bottom: 16px; z-index: 99; display: flex; flex-direction: column; gap: 8px; }
+  #toast div { background: #0ea5b7; color: #fff; padding: 10px 14px; border-radius: 10px; box-shadow: 0 6px 20px #0008; font-weight: 600; max-width: 340px; }
+  body.mini .wrap { max-width: 760px; } body.mini .main { grid-template-columns: 1fr; }
+  body.mini .tabs, body.mini .pane, body.mini #inds, body.mini .ctool, body.mini #sWatch, body.mini #sAlert, body.mini .wrap > .warn, body.mini .left > .warn, body.mini #mtWrap, body.mini #fxWrap { display: none !important; }
+  body.mini #lw { height: 330px !important; } body.mini .side { position: static; max-height: none; }
+  @media (max-width: 1000px) { .main { grid-template-columns: 1fr; } .side { position: static; max-height: none; } }
   header { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
   header a { color: var(--mut); text-decoration: none; }
   header h1 { font-size: 1.3rem; margin: 0; flex: 1; }
@@ -45,7 +63,7 @@
   .kpi b { display: block; font-size: 16px; color: var(--tx); }
   #log { background: #020617; border-radius: 8px; padding: 8px; font: 12px ui-monospace, monospace; max-height: 170px; overflow: auto; margin-top: 10px; }
   .hide { display: none !important; }
-  #lw { height: 560px; }
+  #lw { height: 600px; }
   .inds { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--mut); margin: 2px 0 6px; }
   .inds label { flex-direction: row; align-items: center; gap: 4px; font-size: 12px; color: var(--tx); }
   .inds input { width: 15px; height: 15px; }
@@ -62,16 +80,24 @@
 
   <div class="bar">
     <label>Market<select id="sym"></select></label>
-    <label>Timeframe<select id="tf"><option value="15m">M15 (15 min)</option><option value="1h" selected>H1 (1 hour)</option>
+    <label id="otherWrap">Other coin<input id="symOther" placeholder="e.g. PEPEUSDT" style="width:120px"></label>
+    <label>Timeframe<select id="tf"><option value="1s">⚡ Live (1-second candles)</option><option value="1m">M1 (1 min)</option><option value="3m">M3 (3 min)</option>
+      <option value="5m">M5 (5 min)</option><option value="15m">M15 (15 min)</option><option value="30m">M30 (30 min)</option><option value="1h" selected>H1 (1 hour)</option>
       <option value="4h">H4 (4 hours)</option><option value="1d">D1 (1 day)</option></select></label>
     <label id="fxWrap" class="hide">Prices from<select id="fxsrc"><option value="web">Web (Binance, follows real rates)</option>
       <option value="mt5">MetaTrader 5 (your broker, via the PC bot)</option></select></label>
     <label id="mtWrap">Type<select id="mtype"><option value="spot">Spot</option><option value="futures">Futures (perpetual)</option></select></label>
-    <button id="reload">↻ Refresh</button>
+    <label style="flex-direction:row;align-items:center;gap:5px;color:var(--tx)"><input type="checkbox" id="autoRef" checked>Auto-refresh</label>
+    <button id="reload" title="Reload the price history now">↻ Reload</button>
+    <label>View<select id="viewMode"><option value="full">Full</option><option value="mini">Mini (chart + signals)</option></select></label>
   </div>
+  <div class="main"><div class="left">
   <div class="price"><b id="px">…</b><span id="chg"></span><span id="bias"></span><span class="mut" id="src"></span></div>
   <div class="inds" id="inds"></div>
-  <div class="chart" id="lw"></div>
+  <div class="chartbox" id="chartbox">
+    <div class="ctool"><button id="cSize">⤢ Bigger chart</button><button id="cFull">⛶ Full screen</button><button id="cFit">⇔ Latest bars</button></div>
+    <div class="chart" id="lw"></div>
+  </div>
   <div class="note" id="live">connecting to the live feed…</div>
 
   <div class="tabs">
@@ -210,6 +236,9 @@
       <li><b>⚡ Live trading (PC)</b> appears when you open this page from DigitBot.exe. It trades Binance Futures/Spot (testnet first)
         and forex/gold through <b>MetaTrader 5 on a DEMO account</b>: choose the market, press Save, then use Manual or Start auto.
         For MT5, set "Prices from" to MetaTrader 5 so the chart shows your broker's own prices.</li>
+      <li><b>Timeframes</b>: ⚡ Live = 1-second candles (crypto), then 1, 3, 5, 15, 30 minutes, 1 and 4 hours, 1 day. Very short timeframes are noisy: backtest before trusting them.</li>
+      <li><b>Side panel</b>: 📊 the latest signal of every strategy, 🔔 price and signal alerts (sound + pop-up), 👀 live prices of other markets (click one to open it).
+        <b>⛶ Full screen</b> and <b>⤢ Bigger chart</b> are above the chart; <b>View › Mini</b> shows just the chart and signals.</li>
       <li><b>🖱️ Screen mode</b>: prefer the bot to read the screen and click Buy / Sell on Binance, TradingView or MetaTrader 5 Web, like the MMG bot?
         Install the <a href="screen.html" target="_blank">DigitBot Screen Trader</a>.</li>
       <li><b>Real trading</b>: the DigitBot PC app trades forex through MetaTrader 5 and crypto through Binance (testnet first), with the same strategies and limits.</li>
@@ -228,6 +257,21 @@
       Most retail traders lose money, and leverage makes losses fast. Never trade money you need.</div>
   </div>
   <div class="warn">Practice and analysis only on this page. Nothing here is financial advice.</div>
+  </div>
+  <aside class="side">
+    <div class="sbox now" id="sNowBox"><h3>📊 Now</h3><div id="sNow" class="mut">loading…</div></div>
+    <div class="sbox" id="sAlert"><h3>🔔 Alerts</h3>
+      <div class="row"><select id="alOp"><option value="above">Price above</option><option value="below">Price below</option></select>
+        <input type="number" id="alPx" step="any" style="width:100px"><button id="alAdd">Add</button></div>
+      <label style="flex-direction:row;align-items:center;gap:6px;color:var(--tx);margin-top:6px"><input type="checkbox" id="alSig">New signal from</label>
+      <select id="alStrat" style="width:100%;margin-top:3px"></select>
+      <div class="row" style="margin-top:6px"><button id="alPerm">Turn on pop-up notifications</button></div>
+      <div id="alList" style="margin-top:6px"></div>
+      <div class="note">Alerts work while this page is open (sound + pop-up). Click the chart price to fill the box.</div></div>
+    <div class="sbox" id="sWatch"><h3>👀 Markets</h3><div id="watch" class="mut">loading…</div></div>
+  </aside>
+  </div>
+  <div id="toast"></div>
 </div>
 <script src="lightweight-charts.js"></script>
 <script src="engine.js"></script>
