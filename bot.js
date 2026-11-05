@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.2.0
+// @version      2.3.0
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -35,7 +35,7 @@
   const DEF = { button: "differ", pick: 0, duration: "5t", stakeSet: 1, autoSetup: true,
                 trigger: "0", inRow: 1, maxTrades: 10, maxMinutes: 20, cooldown: 2,
                 maxStake: 10, stopLoss: 20, takeProfit: 20, allowReal: false, live: false };
-  DEF.strategy = "custom";
+  DEF.strategy = "custom"; DEF.tab = "auto";
 
   // Ready-made strategies: picking one fills in every setting below (you can still change them).
   // Safe defaults for all: $1 stake, stop-loss $10, take-profit $10, max stake $5, LIVE clicks on.
@@ -276,6 +276,12 @@
   #mdb .warn{color:#b91c1c;font-weight:600} #mdb .ok{color:#15803d;font-weight:600}
   #mdb .log .warn{color:#fca5a5} #mdb .log .ok{color:#86efac}
   #mdb.min .bd,#mdb.min .hp{display:none!important} #mdb.min{width:auto}
+  #mdb .tabs{display:flex;gap:6px;margin-bottom:8px}
+  #mdb .tabs button{flex:1;padding:8px;border:1px solid #cbd5e1;background:#f1f5f9;border-radius:8px;font-size:14px;font-weight:600;color:#475569}
+  #mdb .tabs button.on{background:#0b7c8c;border-color:#0b7c8c;color:#fff}
+  #mdb .once{grid-column:1/3;padding:9px;border:0;border-radius:8px;background:#2563eb;color:#fff;font-size:14px;font-weight:600}
+  #mdb .once:disabled{background:#94a3b8}
+  #mdb .tip{grid-column:1/3;font-size:11px;color:#64748b}
   #mdb .hp{display:none;padding:8px 10px;max-height:75vh;overflow:auto;font-size:13px}
   #mdb.help .bd{display:none} #mdb.help .hp{display:block}
   #mdb .hp details{border:1px solid #e2e8f0;border-radius:8px;margin:6px 0;background:#f8fafc}
@@ -288,9 +294,14 @@
   const HELP = `
    <p><b>What this bot does:</b> it watches the last digit of every price tick and, when your rule
    (“Trade when”) happens, it presses the trade button for you, with your stake, until a limit stops it.</p>
-   <details open><summary>Easiest: pick a strategy</summary><div><ol>
+   <details open><summary>Auto or Manual?</summary><div><ul>
+    <li><b>⚡ Auto</b>: pick a strategy, press <b>Start auto</b>. The bot trades by itself with the strategy's settings.</li>
+    <li><b>✋ Manual</b>: you choose the button, digit, stake and limits. <b>Trade once now</b> places one trade at once;
+        <b>Start</b> lets the bot trade with your settings when “Trade when” happens.</li>
+   </ul></div></details>
+   <details><summary>Easiest: pick a strategy</summary><div><ol>
     <li>Open the game (Manual Trader) on <b>DEMO</b>.</li>
-    <li>In <b>Strategy</b> at the top, choose one. All settings are filled in for you
+    <li>Open the <b>⚡ Auto</b> tab and choose a <b>Strategy</b>. All settings are filled in for you
         ($1 stake, stop-loss $10, take-profit $10, LIVE clicks on).</li>
     <li>Press <b>Start</b>, check the summary and press OK. The bot sets up the game and trades by itself
         until a limit is reached. <b>Stop</b> stops at once.</li>
@@ -306,7 +317,7 @@
     <li><b>Rise / Fall – 5 ticks</b>: bets the price is higher / lower after 5 ticks, 6 s apart.</li>
    </ul><p><b>Honestly:</b> digits are random, so a streak or a “hot” digit does not change the next tick.
    The strategies only change how often you trade and how big the swings are. All of them lose about 1% per trade on average.</p></div></details>
-   <details><summary>Quick start with your own settings</summary><div><ol>
+   <details><summary>Quick start with your own settings (Manual tab)</summary><div><ol>
     <li>In the game, open <b>Manual Trader</b> and make sure the account says <b>DEMO</b>.</li>
     <li><b>Button</b>: what to buy (e.g. Differ). Choose the <b>Pick digit</b> / Barrier / Duration if shown.</li>
     <li><b>Stake</b>: money per trade, e.g. <code>1</code>. Tick <b>Set up the game for me</b>.</li>
@@ -367,13 +378,20 @@
   box.innerHTML = `
   <div class="hd"><b>🤖 Digit Bot</b><span id="mdbBadge"></span><button id="mdbHelp" title="Help: how the bot works">?</button><button id="mdbMin">–</button><button id="mdbX">✕</button></div>
   <div class="bd">
-   <div class="g">
+   <div class="tabs"><button id="tabAuto">⚡ Auto</button><button id="tabMan">✋ Manual</button></div>
+   <div class="g" id="pAuto">
+    <div class="tip">Auto trading: pick a strategy, press Start. The bot trades by itself until a limit stops it.</div>
     <div class="sec">Strategy</div>
     <label style="grid-column:1/3">Pick a strategy (fills in all settings), then press Start
      <select id="f_strategy"><option value="custom">Custom – my own settings</option>${
       [...new Set(STRATEGIES.map(s => s.group))].map(g => `<optgroup label="${g}">` +
         STRATEGIES.filter(s => s.group === g).map(s => opt(s.id, s.name)).join("") + "</optgroup>").join("")}</select></label>
     <div class="odds" id="mdbStratDesc"></div>
+    <div class="odds" id="mdbOdds2"></div>
+   </div>
+   <div class="g" id="pMan">
+    <div class="tip">Manual trading: choose everything yourself. Press <b>Trade once now</b> for a single trade,
+     or <b>Start</b> to let the bot trade with these settings.</div>
     <div class="sec">Trade</div>
     <label>Button<select id="f_button">${BUTTONS.map(b => opt(b, b[0].toUpperCase() + b.slice(1))).join("")}</select></label>
     <label id="w_pick"><span id="l_pick">Pick digit</span><select id="f_pick">${[...Array(10).keys()].map(i => opt(i, i)).join("")}</select></label>
@@ -381,7 +399,8 @@
     <label>Stake ($)<input id="f_stakeSet" type="number" min="0.35" step="0.01" inputmode="decimal"></label>
     <label class="ck" style="grid-column:1/3"><input id="f_autoSetup" type="checkbox">Set up the game for me (mode, pick, stake)</label>
     <div class="odds" id="mdbOdds"></div>
-    <div class="sec">When</div>
+    <button class="once" id="mdbOnce">Trade once now</button>
+    <div class="sec">When (for Start)</div>
     <label>Trade when<select id="f_trigger">${TRIGGERS.map(([v, t]) => opt(v, t)).join("")}</select></label>
     <label>Times in a row<input id="f_inRow" type="number" min="1" max="10" inputmode="numeric"></label>
     <div class="sec">Limits</div>
@@ -456,6 +475,16 @@
     $("w_duration").style.display = rf ? "" : "none";
   }
   refreshForm();
+  function showTab() {
+    const auto = S.tab !== "manual";
+    $("pAuto").style.display = auto ? "" : "none";
+    $("pMan").style.display = auto ? "none" : "";
+    $("tabAuto").classList.toggle("on", auto); $("tabMan").classList.toggle("on", !auto);
+    $("mdbStart").textContent = auto ? "Start auto" : "Start";
+  }
+  $("tabAuto").onclick = () => { S.tab = "auto"; save(); showTab(); };
+  $("tabMan").onclick = () => { S.tab = "manual"; save(); showTab(); };
+  showTab();
   $("mdbMin").onclick = () => box.classList.toggle("min");
   $("mdbHelp").onclick = () => { box.classList.remove("min"); box.classList.toggle("help"); $("mdbHelpBox").scrollTop = 0; };
   $("mdbBack").onclick = () => box.classList.remove("help");
@@ -495,6 +524,7 @@
 
   async function start() {
     if (running || busy) return;
+    if (S.tab !== "manual" && !strategyById(S.strategy)) { log("Pick a strategy first (or use the Manual tab).", "warn"); return; }
     const demo = isDemo(), bal = balance();
     if (!demo && !S.allowReal) { log("This is a REAL account. Tick 'Allow REAL' first (or switch to DEMO).", "warn"); return; }
     if (!circleRow() || !priceText()) { log("Can't find the digit circles / price. Open the Manual Trader page.", "warn"); return; }
@@ -531,6 +561,31 @@
   }
   // Normal limits: place no more trades, let the open ones settle, then stop with the true P/L.
   function finish(why) { if (running && !finishing) { finishing = why; log(`${why} - waiting for open trades to finish…`); } }
+  // Manual: place exactly one trade now with the Manual settings (button, pick, stake).
+  async function tradeOnce() {
+    if (running || busy) { log("The bot is running - press Stop first, then trade by hand.", "warn"); return; }
+    const demo = isDemo();
+    if (!demo && !S.allowReal) { log("This is a REAL account. Tick 'Allow REAL' first (or switch to DEMO).", "warn"); return; }
+    if (!circleRow() || !priceText()) { log("Can't find the game. Open the Manual Trader page.", "warn"); return; }
+    busy = true; $("mdbOnce").disabled = true;
+    try {
+      if (S.autoSetup && gameProblem()) {
+        if (+S.stakeSet > +S.maxStake) { log(`Stake $${S.stakeSet} is above your max stake $${S.maxStake}.`, "warn"); return; }
+        log(`setting up the game: ${describe()}, $${S.stakeSet}…`);
+        await setupGame(); log("game is set up ✓", "ok");
+      }
+      const b = tradeButton(S.button), st = stake();
+      if (!b) { log(`Can't see the ${S.button.toUpperCase()} button - pick that game mode first.`, "warn"); return; }
+      if (b.disabled) { log(`${S.button.toUpperCase()} is unavailable right now.`, "warn"); return; }
+      if (st == null) { log("Can't read the stake (Amount) - not trading blind.", "warn"); return; }
+      if (st > S.maxStake) { log(`Stake $${st} is above your max stake $${S.maxStake}.`, "warn"); return; }
+      if (!demo && !confirm(`⚠ REAL MONEY\nPress ${describe()} for $${st}?`)) return;
+      b.click(); lastClick = Date.now();
+      log(`MANUAL: CLICKED ${describe()} ($${st})`, "ok");
+    } catch (e) { log("setup failed: " + e, "warn"); }
+    finally { busy = false; $("mdbOnce").disabled = false; }
+  }
+  $("mdbOnce").onclick = tradeOnce;
   $("mdbStart").onclick = start;
   $("mdbStop").onclick = () => stop("stopped by you");
 
@@ -586,7 +641,7 @@
     $("mdbSym").textContent = symbolName() + (mode ? " · " + MODE_NAME[mode] : "");
     const st = stake(); $("mdbStake").textContent = "stake: " + (st == null ? "?" : "$" + st);
     const odds = MODE[S.button] === mode ? oddsText() : `odds show when the game is on ${MODE_NAME[MODE[S.button]]}`;
-    if (odds !== lastOdds) { $("mdbOdds").innerHTML = odds; lastOdds = odds; }
+    if (odds !== lastOdds) { $("mdbOdds").innerHTML = $("mdbOdds2").innerHTML = odds; lastOdds = odds; }
     const pl = running && bal != null && startBal != null ? bal - startBal : null;
     if (pl != null && done) $("mdbPL").innerHTML = `<span class="${pl >= 0 ? "ok" : "warn"}">P/L ${pl >= 0 ? "+" : ""}$${pl.toFixed(2)}</span>`;
     else if (running) $("mdbPL").textContent = `P/L … (${openTrades() ?? "?"} open)`;
