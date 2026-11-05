@@ -45,6 +45,11 @@
   .kpi b { display: block; font-size: 16px; color: var(--tx); }
   #log { background: #020617; border-radius: 8px; padding: 8px; font: 12px ui-monospace, monospace; max-height: 170px; overflow: auto; margin-top: 10px; }
   .hide { display: none !important; }
+  #lw { height: 560px; }
+  .inds { display: flex; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--mut); margin: 2px 0 6px; }
+  .inds label { flex-direction: row; align-items: center; gap: 4px; font-size: 12px; color: var(--tx); }
+  .inds input { width: 15px; height: 15px; }
+  .pc { background: #052e1c; border: 1px solid #15803d; color: #86efac; border-radius: 8px; padding: 3px 8px; font-weight: 700; font-size: 12px; }
 </style>
 </head>
 <body>
@@ -59,15 +64,17 @@
     <label>Market<select id="sym"></select></label>
     <label>Timeframe<select id="tf"><option value="15m">M15 (15 min)</option><option value="1h" selected>H1 (1 hour)</option>
       <option value="4h">H4 (4 hours)</option><option value="1d">D1 (1 day)</option></select></label>
-    <label>Show<select id="zoom"><option>80</option><option selected>150</option><option>300</option></select></label>
+    <label id="mtWrap">Type<select id="mtype"><option value="spot">Spot</option><option value="futures">Futures (perpetual)</option></select></label>
     <button id="reload">↻ Refresh</button>
   </div>
   <div class="price"><b id="px">…</b><span id="chg"></span><span id="bias"></span><span class="mut" id="src"></span></div>
-  <div class="chart"><canvas id="cv" height="330"></canvas></div>
+  <div class="inds" id="inds"></div>
+  <div class="chart" id="lw"></div>
+  <div class="note" id="live">connecting to the live feed…</div>
 
   <div class="tabs">
     <button data-t="sig" class="on">📈 Signals</button><button data-t="bt">🧪 Backtest</button>
-    <button data-t="pt">🤖 Practice trading</button><button data-t="help">❓ Help</button>
+    <button data-t="pt">🤖 Practice trading</button><button data-t="live" id="tabLive" class="hide">⚡ Live trading (PC)</button><button data-t="help">❓ Help</button>
   </div>
 
   <!-- ===================== Signals -->
@@ -136,10 +143,60 @@
     <div class="note">Practice money only ($10,000 to start). Auto trading works while this page is open; for real trading use the PC app.</div>
   </div>
 
+  <!-- ===================== Live trading through DigitBot.exe -->
+  <div class="pane hide" id="t_live">
+    <div class="kpi" id="lvKpi"></div>
+    <div class="grid">
+      <div class="box"><h3>⚙️ Account and limits</h3>
+        <div class="row">
+          <label>Market<select id="lvMarket"><option value="futures">Futures (long + short)</option><option value="spot">Spot (buy only)</option></select></label>
+          <label>Money<select id="lvNet"><option value="1">TESTNET (practice)</option><option value="0">LIVE (real money)</option></select></label>
+          <label>Leverage (max 3x)<select id="lvLev"><option>1</option><option>2</option><option selected>3</option></select></label>
+        </div>
+        <div class="row" style="margin-top:6px">
+          <label>Risk per trade %<input type="number" id="lvRisk" step="0.1" min="0.1" max="5"></label>
+          <label>Daily loss limit %<input type="number" id="lvDay" step="0.5"></label>
+          <label>Max open<input type="number" id="lvOpen" min="1"></label>
+          <label>Max trades/day<input type="number" id="lvMaxDay" min="1"></label>
+        </div>
+        <details style="margin-top:8px"><summary>🔑 Testnet API keys (stay on this PC)</summary>
+          <div class="row" style="margin-top:6px">
+            <label>Futures testnet key<input id="lvFk" type="password" style="width:200px"></label>
+            <label>Futures testnet secret<input id="lvFs" type="password" style="width:200px"></label>
+          </div>
+          <div class="row" style="margin-top:6px">
+            <label>Spot testnet key<input id="lvSk" type="password" style="width:200px"></label>
+            <label>Spot testnet secret<input id="lvSs" type="password" style="width:200px"></label>
+          </div>
+          <div class="note">Futures keys: <b>testnet.binancefuture.com</b> (register, then API Key). Spot keys: <b>testnet.binance.vision</b> (log in with GitHub).
+            LIVE keys and allowing real money: DigitBot.exe › Crypto tab.</div>
+        </details>
+        <div class="row" style="margin-top:8px"><button class="pri" id="lvSave">Save</button></div>
+      </div>
+      <div class="box"><h3>🤖 Auto trading</h3>
+        <div class="row">
+          <label>Strategy<select id="lvStrat"></select></label>
+          <label style="flex-direction:row;align-items:center;gap:6px;color:var(--tx)"><input type="checkbox" id="lvUntested">practise untested (testnet only)</label>
+        </div>
+        <div class="note" style="margin-top:4px">Uses the market and timeframe of the chart. It runs a backtest first and only trades a strategy that PASSES
+          (or an untested one on TESTNET if ticked). Entries, stop-loss, take-profit, break-even, trailing and exits are automatic.</div>
+        <div class="row" style="margin-top:8px"><button class="pri" id="lvAutoOn">▶ Start auto</button><button id="lvAutoOff">■ Stop auto</button></div>
+        <div class="note" id="lvAutoState"></div>
+        <h3 style="margin-top:12px">✋ Manual</h3>
+        <div class="row"><button class="buy" id="lvBuy">BUY / LONG</button><button class="sell" id="lvSell">SELL / SHORT</button><button id="lvClose">Close position</button></div>
+        <div class="note">Stop 1.5 × ATR, target 2 × stop, size from your risk %; both orders are placed on Binance.</div>
+      </div>
+    </div>
+    <h3 style="margin:14px 0 4px">Open positions (on Binance)</h3><div class="scroll"><table id="lvPos"></table></div>
+    <h3 style="margin:14px 0 4px">Closed</h3><div class="scroll"><table id="lvHist"></table></div>
+    <div id="lvLog" style="background:#020617;border-radius:8px;padding:8px;font:12px ui-monospace,monospace;max-height:220px;overflow:auto;margin-top:10px"></div>
+  </div>
+
   <!-- ===================== Help -->
   <div class="pane hide" id="t_help">
     <div class="box"><h3>How to use it</h3><ol>
-      <li><b>Pick a market and timeframe.</b> The chart shows candles with EMA20 (yellow), EMA50 (blue) and EMA200 (purple).</li>
+      <li><b>Pick a market, timeframe and (crypto) Spot or Futures.</b> The chart is live: it moves with every trade on Binance.
+        Tick the indicators you want above the chart: EMAs, Bollinger Bands, volume, RSI, MACD, signals and your trades.</li>
       <li><b>📈 Signals</b> shows the market reading and the latest signal of each strategy, with its stop-loss and take-profit.</li>
       <li><b>🧪 Backtest</b> tests all 5 strategies on history. Only consider a strategy that says <b>PASS</b> on this market and timeframe.</li>
       <li><b>🤖 Practice trading</b>: start auto trading with a PASS strategy, or trade by hand, with $10,000 practice money.
@@ -161,6 +218,7 @@
   </div>
   <div class="warn">Practice and analysis only on this page. Nothing here is financial advice.</div>
 </div>
+<script src="lightweight-charts.js"></script>
 <script src="engine.js"></script>
 <script src="trade.js"></script>
 </body>

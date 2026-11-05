@@ -1,7 +1,7 @@
 /* DigitBot Forex / Crypto web app: live Binance prices, chart, signals, backtest, practice (paper) trading. */
 (function () {
   "use strict";
-  const E = window.Engine, $ = id => document.getElementById(id);
+  const E = window.Engine, $ = id => document.getElementById(id), PC = window.DB_PC || null;
   const DATA = "https://data-api.binance.vision/api/v3/";
   const MARKETS = {
     forex: [["EURUSDT", "EUR/USD", "fx"], ["GBPUSDT", "GBP/USD", "fx"], ["AUDUSDT", "AUD/USD", "fx"], ["PAXGUSDT", "Gold XAU/USD", "gold"]],
@@ -11,7 +11,9 @@
   const TF_MS = { "15m": 9e5, "1h": 36e5, "4h": 144e5, "1d": 864e5 };
   const COLORS = ["#38bdf8", "#f59e0b", "#a78bfa", "#22c55e", "#f472b6"];
   let mode = location.hash === "#crypto" ? "crypto" : "forex";
-  let bars = [], B = null, lastClosedT = 0, loading = false;
+  let bars = [], B = null, lastClosedT = 0, loading = false, lastFull = 0;
+  const mtype = () => mode === "crypto" ? $("mtype").value : "spot";
+  const restBase = () => mtype() === "futures" ? "https://fapi.binance.com/fapi/v1/" : DATA;
 
   // ---------------------------------------------------------------- helpers
   const dec = p => p >= 1000 ? 2 : p >= 10 ? 3 : p >= 1 ? 5 : 6;
@@ -23,35 +25,69 @@
   const params = () => ({ sl_atr: +$("btSl").value || 1.5, rr: +$("btRr").value || 2, breakeven_r: +$("btBe").value, longOnly: $("btLong").checked });
 
   async function klines(sym, tf, limit, endTime) {
-    const u = `${DATA}klines?symbol=${sym}&interval=${tf}&limit=${limit}` + (endTime ? `&endTime=${endTime}` : "");
+    const u = `${restBase()}klines?symbol=${sym}&interval=${tf}&limit=${limit}` + (endTime ? `&endTime=${endTime}` : "");
     const r = await fetch(u); if (!r.ok) throw new Error("price feed " + r.status);
-    return (await r.json()).map(k => ({ t: k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4] }));
+    return (await r.json()).map(k => ({ t: k[0], o: +k[1], h: +k[2], l: +k[3], c: +k[4], v: +k[5] }));
   }
   async function loadHistory() {
     if (loading) return; loading = true;
-    const sym = $("sym").value, tf = $("tf").value;
+    const sym = $("sym").value, tf = $("tf").value, per = mtype() === "futures" ? 1500 : 1000;
     $("px").textContent = "loading…";
     try {
       let all = [], end = null;
-      for (let k = 0; k < 3; k++) { const part = await klines(sym, tf, 1000, end); if (!part.length) break; all = part.concat(all); end = part[0].t - 1; if (part.length < 1000) break; }
-      bars = all; lastClosedT = 0; recompute(); log(`loaded ${bars.length} bars of ${label(sym)} ${tf}`);
+      for (let k = 0; k < 3 && all.length < 3000; k++) { const part = await klines(sym, tf, per, end); if (!part.length) break; all = part.concat(all); end = part[0].t - 1; if (part.length < per) break; }
+      bars = all.slice(-3000); lastClosedT = 0; recompute(true); fitChart(); connectWS();
+      log(`loaded ${bars.length} bars of ${label(sym)} ${tf} (${mtype()})`);
     } catch (e) { $("px").textContent = "no data"; log("could not load prices: " + e.message); }
     loading = false;
   }
-  async function refreshLatest() {
-    if (loading || !bars.length) return;
+  async function refreshLatest() {               // backup if the live feed is quiet
+    if (loading || !bars.length || Date.now() - wsAlive < 20000) return;
     try {
       const sym = $("sym").value, tf = $("tf").value, k = await klines(sym, tf, 3);
       if (sym !== $("sym").value || tf !== $("tf").value) return;
-      for (const x of k) { const i = bars.findIndex(b => b.t === x.t); if (i >= 0) bars[i] = x; else if (x.t > bars[bars.length - 1].t) bars.push(x); }
-      if (bars.length > 3200) bars.splice(0, bars.length - 3000);
-      recompute();
+      for (const x of k) mergeBar(x);
+      recompute(true);
     } catch (e) { /* try again next time */ }
   }
+  function mergeBar(x) {
+    const last = bars[bars.length - 1];
+    if (last && last.t === x.t) bars[bars.length - 1] = x;
+    else if (!last || x.t > last.t) { bars.push(x); if (bars.length > 3200) bars.splice(0, bars.length - 3000); }
+    else { const i = bars.findIndex(b => b.t === x.t); if (i >= 0) bars[i] = x; }
+  }
+  // ---------------------------------------------------------------- live feed (websocket): moves with every trade
+  let ws = null, wsAlive = 0, wsN = 0, wsKey = "";
+  function connectWS() {
+    const sym = $("sym").value.toLowerCase(), tf = $("tf").value, key = sym + tf + mtype();
+    if (ws && wsKey === key && ws.readyState <= 1) return;
+    if (ws) { ws.onclose = null; ws.close(); }
+    wsKey = key; wsN = 0;
+    const url = mtype() === "futures" ? `wss://fstream.binance.com/market/ws/${sym}@kline_${tf}` : `wss://data-stream.binance.vision/ws/${sym}@kline_${tf}`;
+    ws = new WebSocket(url);
+    ws.onmessage = m => {
+      const k = JSON.parse(m.data).k; if (!k || wsKey !== key) return;
+      wsAlive = Date.now(); wsN++;
+      mergeBar({ t: k.t, o: +k.o, h: +k.h, l: +k.l, c: +k.c, v: +k.v });
+      if (k.x || Date.now() - lastFull > 3000) recompute(true); else liveTick();
+    };
+    ws.onclose = () => setTimeout(() => { if (wsKey === key) { ws = null; connectWS(); } }, 3000);
+  }
+  setInterval(() => {
+    const age = (Date.now() - wsAlive) / 1000;
+    $("live").innerHTML = wsAlive && age < 15 ? `🟢 <b>live</b> · ${mtype() === "futures" ? "Binance Futures" : "Binance Spot"} feed · last update ${age.toFixed(0)} s ago` +
+      (PC ? ` · <span class="pc">PC bot connected</span>` : "") : `🟡 waiting for the live feed… (prices refresh every 15 s meanwhile)`;
+  }, 1000);
   // the last bar is still forming; signals only use closed bars
   const closedIdx = () => { const tfms = TF_MS[$("tf").value]; let i = B.n - 1; while (i > 0 && B.t[i] + tfms > Date.now()) i--; return i; };
 
+  function liveTick() {                          // cheap update between full recomputes
+    const x = bars[bars.length - 1]; if (!x || !S.c) return;
+    S.c.update(cbar(x)); if (S.vol) S.vol.update(vbar(x));
+    $("px").textContent = fmt(x.c); lastPrice[$("sym").value] = x.c; managePositions();
+  }
   function recompute() {
+    lastFull = Date.now();
     B = E.addAll(bars);
     const i = B.n - 1, ci = closedIdx(), p = B.c[i], first = B.c[Math.max(0, i - Math.round(864e5 / TF_MS[$("tf").value]))];
     $("px").textContent = fmt(p);
@@ -66,49 +102,78 @@
     managePositions(); renderAccount();
   }
 
-  // ---------------------------------------------------------------- chart
+  // ---------------------------------------------------------------- chart (TradingView Lightweight Charts, free / open source)
+  const LW = window.LightweightCharts, TZ = new Date().getTimezoneOffset() * 60;
+  const tsec = ms => ms / 1000 - TZ;                     // show local time on the chart
+  const cbar = x => ({ time: tsec(x.t), open: x.o, high: x.h, low: x.l, close: x.c });
+  const vbar = x => ({ time: tsec(x.t), value: x.v, color: x.c >= x.o ? "rgba(34,197,94,.45)" : "rgba(239,68,68,.45)" });
+  const IND = [["ema", "EMA 20/50/200", true], ["bb", "Bollinger", false], ["vol", "Volume", true], ["rsi", "RSI", true],
+               ["macd", "MACD", false], ["sig", "Signals", true], ["pos", "My trades", true]];
+  let chart = null, S = {}, posLines = [];
+  function ind(k) { const el = $("in_" + k); return el ? el.checked : true; }
+  $("inds").innerHTML = "Show:" + IND.map(([k, l, on]) => `<label><input type="checkbox" id="in_${k}" ${localStorage.getItem("dbInd." + k) ?? (on ? "1" : "") ? "checked" : ""}>${l}</label>`).join("");
+  IND.forEach(([k]) => $("in_" + k).onchange = () => { localStorage.setItem("dbInd." + k, $("in_" + k).checked ? "1" : ""); buildChart(); recompute(true); });
+  function buildChart() {
+    if (chart) chart.remove();
+    S = {}; posLines = [];
+    chart = LW.createChart($("lw"), { autoSize: true,
+      layout: { background: { color: "#0b1220" }, textColor: "#94a3b8", panes: { separatorColor: "#334155", enableResize: true } },
+      grid: { vertLines: { color: "#162033" }, horzLines: { color: "#162033" } }, crosshair: { mode: 0 },
+      rightPriceScale: { borderColor: "#334155" }, timeScale: { borderColor: "#334155", timeVisible: true, rightOffset: 6 } });
+    S.c = chart.addSeries(LW.CandlestickSeries, { upColor: "#22c55e", downColor: "#ef4444", borderVisible: false, wickUpColor: "#22c55e", wickDownColor: "#ef4444" });
+    const line = (col, pane = 0, w = 1.5, style = 0) => chart.addSeries(LW.LineSeries, { color: col, lineWidth: w, lineStyle: style, priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false }, pane);
+    if (ind("ema")) { S.e20 = line("#facc15"); S.e50 = line("#38bdf8"); S.e200 = line("#a78bfa"); }
+    if (ind("bb")) { S.bbu = line("#94a3b8", 0, 1, 2); S.bbm = line("#64748b", 0, 1, 1); S.bbl = line("#94a3b8", 0, 1, 2); }
+    if (ind("vol")) { S.vol = chart.addSeries(LW.HistogramSeries, { priceFormat: { type: "volume" }, priceScaleId: "vol", lastValueVisible: false, priceLineVisible: false });
+                      S.vol.priceScale().applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } }); }
+    let pane = 1;
+    if (ind("rsi")) { S.rsi = line("#f472b6", pane, 1.5); [70, 30].forEach(v => S.rsi.createPriceLine({ price: v, color: "#475569", lineStyle: 2, lineWidth: 1, axisLabelVisible: true, title: "" })); pane++; }
+    if (ind("macd")) { S.mh = chart.addSeries(LW.HistogramSeries, { priceLineVisible: false, lastValueVisible: false }, pane);
+                       S.m = line("#38bdf8", pane, 1.5); S.ms = line("#f59e0b", pane, 1.2); pane++; }
+    S.mk = LW.createSeriesMarkers(S.c, []);
+    const panes = chart.panes(); if (panes.length > 1) panes.slice(1).forEach(p => p.setHeight(110));
+  }
+  function fitChart() { if (chart) chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, bars.length - 160), to: bars.length + 5 }); }
+  function bollinger(c) {
+    const up = [], mid = [], lo = [];
+    for (let i = 0; i < c.length; i++) {
+      if (i < 19) { up.push(NaN); mid.push(NaN); lo.push(NaN); continue; }
+      let s = 0; for (let j = i - 19; j <= i; j++) s += c[j]; const m = s / 20;
+      let q = 0; for (let j = i - 19; j <= i; j++) q += (c[j] - m) ** 2; const sd = Math.sqrt(q / 19);
+      up.push(m + 2 * sd); mid.push(m); lo.push(m - 2 * sd);
+    }
+    return [up, mid, lo];
+  }
   function draw() {
-    const cv = $("cv"), dpr = window.devicePixelRatio || 1, W = cv.clientWidth, H = 330;
-    cv.width = W * dpr; cv.height = H * dpr; const g = cv.getContext("2d"); g.scale(dpr, dpr);
-    g.fillStyle = "#0b1220"; g.fillRect(0, 0, W, H);
-    if (!B) return;
-    const n = Math.min(+$("zoom").value, B.n), s = B.n - n, padR = 70, plotW = W - padR, cw = plotW / n;
-    let hi = -Infinity, lo = Infinity;
-    for (let i = s; i < B.n; i++) { hi = Math.max(hi, B.h[i]); lo = Math.min(lo, B.l[i]); }
-    const pos = acct.pos.filter(x => x.sym === $("sym").value);
-    for (const x of pos) { hi = Math.max(hi, x.tp, x.sl); lo = Math.min(lo, x.tp, x.sl); }
-    const pad = (hi - lo) * 0.06; hi += pad; lo -= pad;
-    const y = v => 10 + (H - 30) * (hi - v) / (hi - lo), x = i => (i - s) * cw + cw / 2;
-    g.strokeStyle = "#1e293b"; g.fillStyle = "#64748b"; g.font = "11px system-ui"; g.lineWidth = 1;
-    for (let k = 0; k <= 5; k++) { const v = lo + (hi - lo) * k / 5, yy = y(v); g.beginPath(); g.moveTo(0, yy); g.lineTo(plotW, yy); g.stroke(); g.fillText(fmt(v), plotW + 6, yy + 4); }
-    for (let i = s; i < B.n; i++) {
-      const up = B.c[i] >= B.o[i]; g.strokeStyle = g.fillStyle = up ? "#22c55e" : "#ef4444";
-      g.beginPath(); g.moveTo(x(i), y(B.h[i])); g.lineTo(x(i), y(B.l[i])); g.stroke();
-      const t = y(Math.max(B.o[i], B.c[i])), bt = y(Math.min(B.o[i], B.c[i]));
-      g.fillRect(x(i) - Math.max(1, cw * 0.35), t, Math.max(1.5, cw * 0.7), Math.max(1, bt - t));
+    if (!chart || !B) return;
+    const pts = arr => { const o = []; for (let i = 0; i < B.n; i++) if (!isNaN(arr[i])) o.push({ time: tsec(B.t[i]), value: arr[i] }); return o; };
+    S.c.setData(bars.map(cbar));
+    if (S.e20) { S.e20.setData(pts(B.ema20)); S.e50.setData(pts(B.ema50)); S.e200.setData(pts(B.ema200)); }
+    if (S.bbu) { const [u, m, l] = bollinger(B.c); S.bbu.setData(pts(u)); S.bbm.setData(pts(m)); S.bbl.setData(pts(l)); }
+    if (S.vol) S.vol.setData(bars.map(vbar));
+    if (S.rsi) S.rsi.setData(pts(B.rsi));
+    if (S.m) { S.m.setData(pts(B.macd)); S.ms.setData(pts(B.macd_sig));
+               S.mh.setData(pts(B.macd_hist).map(x => ({ ...x, color: x.value >= 0 ? "rgba(34,197,94,.6)" : "rgba(239,68,68,.6)" }))); }
+    // strategy signals (the strategy chosen in Live or Practice)
+    const mk = [];
+    if (ind("sig")) {
+      const strat = (PC && !$("t_live").classList.contains("hide") ? $("lvStrat").value : $("ptStrat").value) || "ema_pullback";
+      const p = Object.assign(params(), { longOnly: mtype() === "spot" && mode === "crypto" ? $("ptLong").checked : false }), ci = closedIdx();
+      for (let i = Math.max(210, ci - 400); i <= ci; i++) {
+        const sg = E.signalAt(B, strat, i, p); if (!sg) continue;
+        const buy = sg.side === "buy";
+        mk.push({ time: tsec(B.t[i]), position: buy ? "belowBar" : "aboveBar", color: buy ? "#22c55e" : "#ef4444", shape: buy ? "arrowUp" : "arrowDown", text: buy ? "BUY" : "SELL" });
+      }
     }
-    [["ema20", "#facc15"], ["ema50", "#38bdf8"], ["ema200", "#a78bfa"]].forEach(([k, col]) => {
-      g.strokeStyle = col; g.lineWidth = 1.4; g.beginPath(); let st = false;
-      for (let i = s; i < B.n; i++) { const v = B[k][i]; if (isNaN(v)) continue; st ? g.lineTo(x(i), y(v)) : g.moveTo(x(i), y(v)); st = true; }
-      g.stroke();
-    });
-    // signals of the chosen strategy
-    const strat = $("ptStrat").value, p = Object.assign(params(), { longOnly: $("ptLong").checked }), ci = closedIdx();
-    for (let i = Math.max(s, 210); i <= ci; i++) {
-      const sg = E.signalAt(B, strat, i, p); if (!sg) continue;
-      const buy = sg.side === "buy", yy = buy ? y(B.l[i]) + 12 : y(B.h[i]) - 12;
-      g.fillStyle = buy ? "#22c55e" : "#ef4444"; g.beginPath();
-      if (buy) { g.moveTo(x(i), yy - 7); g.lineTo(x(i) - 5, yy + 2); g.lineTo(x(i) + 5, yy + 2); }
-      else { g.moveTo(x(i), yy + 7); g.lineTo(x(i) - 5, yy - 2); g.lineTo(x(i) + 5, yy - 2); }
-      g.fill();
+    S.mk.setMarkers(mk);
+    // my trades: practice + live (PC) positions as lines
+    posLines.forEach(l => S.c.removePriceLine(l)); posLines = [];
+    if (ind("pos")) {
+      const sym = $("sym").value, add = (price, color, title) => posLines.push(S.c.createPriceLine({ price, color, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title }));
+      acct.pos.filter(x => x.sym === sym).forEach(x => { add(x.entry, "#e2e8f0", "practice " + x.side); add(x.sl, "#ef4444", "SL"); add(x.tp, "#22c55e", "TP"); });
+      (liveOpen || []).filter(x => x.symbol === sym && x.venue === mtype()).forEach(x => {
+        add(x.entry, "#38bdf8", `LIVE ${x.venue === "futures" ? (x.side === "buy" ? "LONG" : "SHORT") : "BUY"}`); add(x.sl, "#ef4444", "SL"); add(x.tp, "#22c55e", "TP"); });
     }
-    // open practice trades
-    for (const t of pos) [["entry", "#e2e8f0"], ["sl", "#ef4444"], ["tp", "#22c55e"]].forEach(([k, col]) => {
-      g.strokeStyle = col; g.setLineDash([5, 4]); g.beginPath(); g.moveTo(0, y(t[k])); g.lineTo(plotW, y(t[k])); g.stroke(); g.setLineDash([]);
-      g.fillStyle = col; g.fillText(`${k.toUpperCase()} ${fmt(t[k])}`, 6, y(t[k]) - 3);
-    });
-    g.fillStyle = "#94a3b8"; g.fillText(`${label($("sym").value)} · ${$("tf").value} · ▲▼ = ${E.STRATEGIES[strat].name} signals`, 8, H - 8);
-    const last = B.c[B.n - 1]; g.fillStyle = "#0ea5b7"; g.fillRect(plotW, y(last) - 8, padR, 16); g.fillStyle = "#fff"; g.fillText(fmt(last), plotW + 6, y(last) + 4);
   }
 
   // ---------------------------------------------------------------- signals + calculator
@@ -251,7 +316,8 @@
   // ---------------------------------------------------------------- UI wiring
   function showTab(t) {
     document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
-    ["sig", "bt", "pt", "help"].forEach(k => $("t_" + k).classList.toggle("hide", k !== t));
+    ["sig", "bt", "pt", "live", "help"].forEach(k => $("t_" + k).classList.toggle("hide", k !== t));
+    if (t === "live" && B) draw();
     if (t === "bt" && !$("btTable").innerHTML) runBacktest();
   }
   function setMode() {
@@ -259,7 +325,8 @@
     $("title").textContent = mode === "forex" ? "💱 Forex" : "₿ Crypto";
     $("swForex").classList.toggle("on", mode === "forex"); $("swCrypto").classList.toggle("on", mode === "crypto");
     $("sym").innerHTML = MARKETS[mode].map(m => `<option value="${m[0]}">${m[1]}</option>`).join("");
-    $("btLong").checked = $("ptLong").checked = mode === "crypto";
+    $("btLong").checked = $("ptLong").checked = mode === "crypto" && mtype() === "spot";
+    $("mtWrap").style.display = mode === "crypto" ? "" : "none";
     $("btCost").value = mode === "crypto" ? 0.1 : 0.02;
     if (auto) { auto = null; $("ptState").textContent = "Auto is off."; }
     loadAcct(); $("btTable").innerHTML = ""; loadHistory().then(() => { if (!$("t_bt").classList.contains("hide")) runBacktest(); });
@@ -269,10 +336,11 @@
   document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => showTab(b.dataset.t));
   window.addEventListener("hashchange", setMode);
   $("sym").onchange = $("tf").onchange = () => { if (auto) { auto = null; $("ptState").textContent = "Auto stopped (market changed)."; log("auto stopped: market or timeframe changed"); } $("btTable").innerHTML = ""; loadHistory(); };
-  $("zoom").onchange = draw; $("ptStrat").onchange = draw; $("ptLong").onchange = draw;
+  $("ptStrat").onchange = draw; $("ptLong").onchange = draw;
+  $("mtype").onchange = () => { if (auto) { auto = null; $("ptState").textContent = "Auto stopped (market changed)."; } $("btTable").innerHTML = ""; loadHistory(); };
   $("reload").onclick = loadHistory; $("btRun").onclick = runBacktest;
   ["calcBal", "calcRisk", "calcSl"].forEach(id => $(id).oninput = () => B && renderCalc(closedIdx()));
-  window.addEventListener("resize", () => B && draw());
+
   $("ptStart").onclick = () => {
     if (!B) return;
     auto = { sym: $("sym").value, tf: $("tf").value, strat: $("ptStrat").value };
@@ -295,6 +363,68 @@
   };
   if (/embed=1/.test(location.search)) document.querySelector("header a").style.display = "none";   // inside the Digit Bot window
   setInterval(refreshLatest, 15000); setInterval(pollOtherPrices, 6000);
+  // ---------------------------------------------------------------- ⚡ live trading through DigitBot.exe (only when opened from the PC app)
+  var liveOpen = [];
+  async function api(path, body) {
+    const r = await fetch(path, { method: body ? "POST" : "GET", headers: { "X-DB-Token": PC.token, "Content-Type": "application/json" },
+                                  body: body ? JSON.stringify(body) : undefined });
+    return r.json();
+  }
+  if (PC) {
+    $("tabLive").classList.remove("hide");
+    $("lvStrat").innerHTML = Object.entries(E.STRATEGIES).map(([k, s]) => `<option value="${k}">${s.name}</option>`).join("");
+    let filled = false;
+    const lvMoney = v => (v < 0 ? "-" : "") + Math.abs(v).toFixed(2) + " USDT";
+    async function poll() {
+      let st; try { st = await api("/api/status"); } catch (e) { $("lvKpi").innerHTML = `<div>PC bot<b class="dn">not reachable</b></div>`; return; }
+      liveOpen = st.open || [];
+      if (!filled) {
+        filled = true; const s = st.settings;
+        $("lvMarket").value = s.market; $("lvNet").value = s.testnet ? "1" : "0"; $("lvLev").value = String(s.leverage);
+        $("lvRisk").value = s.risk_per_trade_pct; $("lvDay").value = s.max_daily_loss_pct; $("lvOpen").value = s.max_open_trades; $("lvMaxDay").value = s.max_trades_per_day;
+        if (mode === "crypto" && $("mtype").value !== s.market) { $("mtype").value = s.market; loadHistory(); }
+      }
+      const k = (l, v, c) => `<div>${l}<b class="${c || ""}">${v}</b></div>`;
+      const keyOk = st.market === "futures" ? (st.mode === "LIVE" ? st.keys.live : st.keys.futures_testnet) : (st.mode === "LIVE" ? st.keys.live : st.keys.spot_testnet);
+      $("lvKpi").innerHTML = k("money", st.mode, st.mode === "LIVE" ? "dn" : "up") + k("market", st.market + (st.market === "futures" ? ` ${st.leverage}x` : "")) +
+        k("equity", st.equity == null ? "–" : lvMoney(st.equity)) + k("available", st.available == null ? "–" : lvMoney(st.available)) +
+        k("today", lvMoney(st.today_pl || 0), (st.today_pl || 0) >= 0 ? "up" : "dn") + k("open", liveOpen.length) +
+        k("auto", st.auto ? `${st.auto.strategy} ${st.auto.symbol} ${st.auto.tf}` : "off", st.auto ? "up" : "") + k("API key", keyOk ? "set" : "missing", keyOk ? "up" : "dn");
+      $("lvAutoState").innerHTML = st.account_error ? `<span class="dn">Account: ${st.account_error}</span>` : (st.auto ? `<b class="up">AUTO ON</b> ${st.auto.passed ? "(strategy PASSED its backtest)" : "(untested strategy - testnet practice)"}` : "Auto is off.");
+      $("lvPos").innerHTML = `<tr><th>market</th><th>side</th><th>size</th><th>entry</th><th>stop</th><th>target</th><th>P/L now</th><th>strategy</th><th></th></tr>` +
+        (liveOpen.map(x => `<tr><td>${x.symbol} ${x.venue}${x.venue === "futures" ? " " + x.lev + "x" : ""}</td><td><span class="tag ${x.side}">${x.venue === "futures" ? (x.side === "buy" ? "LONG" : "SHORT") : "BUY"}</span></td>
+          <td>${(+x.qty).toPrecision(4)}</td><td>${fmt(x.entry)}</td><td>${fmt(x.sl)}</td><td>${fmt(x.tp)}</td><td class="${(x.upl || 0) >= 0 ? "up" : "dn"}">${x.upl == null ? "–" : lvMoney(x.upl)}</td>
+          <td>${x.strategy}</td><td><button data-lvclose="${x.symbol}">Close</button></td></tr>`).join("") || `<tr><td colspan="9" class="mut">No open positions.</td></tr>`);
+      $("lvHist").innerHTML = `<tr><th>closed</th><th>market</th><th>side</th><th>entry</th><th>exit</th><th>P/L</th><th>reason</th></tr>` +
+        ((st.closed || []).slice().reverse().map(x => `<tr><td>${(x.closed || "").replace("T", " ")}</td><td>${x.symbol}</td><td>${x.side}</td><td>${fmt(x.entry)}</td><td>${fmt(x.exit)}</td>
+          <td class="${x.pl >= 0 ? "up" : "dn"}">${lvMoney(x.pl || 0)}</td><td>${x.reason}</td></tr>`).join("") || `<tr><td colspan="7" class="mut">No closed trades yet.</td></tr>`);
+      const L = $("lvLog"), atEnd = L.scrollTop + L.clientHeight >= L.scrollHeight - 5;
+      L.innerHTML = (st.log || []).map(l => `<div>${l.replace(/&/g, "&amp;").replace(/</g, "&lt;")}</div>`).join(""); if (atEnd) L.scrollTop = 1e9;
+      if (B) draw();
+    }
+    poll(); setInterval(poll, 3000);
+    $("lvMarket").onchange = () => { if (mode === "crypto") { $("mtype").value = $("lvMarket").value; loadHistory(); } };
+    $("lvSave").onclick = async () => {
+      const b = { market: $("lvMarket").value, testnet: $("lvNet").value === "1", leverage: +$("lvLev").value, risk_per_trade_pct: +$("lvRisk").value,
+                  max_daily_loss_pct: +$("lvDay").value, max_open_trades: +$("lvOpen").value, max_trades_per_day: +$("lvMaxDay").value,
+                  futures_testnet_key: $("lvFk").value.trim(), futures_testnet_secret: $("lvFs").value.trim(),
+                  testnet_key: $("lvSk").value.trim(), testnet_secret: $("lvSs").value.trim() };
+      if (!b.testnet && !confirm("LIVE = REAL MONEY on Binance. Continue?")) return;
+      await api("/api/settings", b); ["lvFk", "lvFs", "lvSk", "lvSs"].forEach(id => $(id).value = ""); filled = false; poll();
+    };
+    $("lvAutoOn").onclick = () => {
+      if (mode !== "crypto") return alert("Live trading here is for Crypto (Binance). Forex live trading: DigitBot.exe › Forex (MT5).");
+      if ($("mtype").value !== $("lvMarket").value) { $("mtype").value = $("lvMarket").value; loadHistory(); }
+      api("/api/auto", { on: true, symbol: $("sym").value, tf: $("tf").value, strategy: $("lvStrat").value, untested: $("lvUntested").checked });
+    };
+    $("lvAutoOff").onclick = () => api("/api/auto", { on: false });
+    $("lvBuy").onclick = () => mode === "crypto" && confirm(`BUY / LONG ${$("sym").value} now?`) && api("/api/order", { symbol: $("sym").value, side: "buy" });
+    $("lvSell").onclick = () => mode === "crypto" && confirm(`SELL / SHORT ${$("sym").value} now?`) && api("/api/order", { symbol: $("sym").value, side: "sell" });
+    $("lvClose").onclick = () => confirm(`Close the bot's ${$("sym").value} position now?`) && api("/api/close", { symbol: $("sym").value });
+    $("lvPos").onclick = e => { const s = e.target.dataset.lvclose; if (s && confirm(`Close ${s} now?`)) api("/api/close", { symbol: s }); };
+    $("lvStrat").onchange = draw;
+  }
+  buildChart();
   setMode();
   window.__trade = { get B() { return B; }, get acct() { return acct; }, runBacktest, openTrade, managePositions, lastPrice, closedIdx, onNewBar, setAuto: a => { auto = a; } };
 })();
