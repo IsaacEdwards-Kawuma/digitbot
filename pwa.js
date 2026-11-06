@@ -3,8 +3,9 @@
    or Chrome before it is ready) the button shows the exact steps for that browser. */
 (function () {
   if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
-  const standalone = matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: window-controls-overlay)").matches || navigator.standalone === true;
   const ua = navigator.userAgent;
+  const inApp = /DigitBotApp\//.test(ua) && !!window.DigitBotAndroid;      // inside the DigitBot Android app
+  const standalone = inApp || matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: window-controls-overlay)").matches || navigator.standalone === true;
   const ios = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
   const android = /Android/.test(ua), mobile = android || ios;
   const browser = /SamsungBrowser/.test(ua) ? "samsung" : /Firefox|FxiOS/.test(ua) ? "firefox" : /Edg\//.test(ua) ? "edge"
@@ -23,7 +24,14 @@
     if (browser === "edge") return "Click the menu <b>…</b> at the top right → <b>Apps</b> → <b>Install this site as an app</b>.";
     return "Click the install icon at the right end of the address bar (a screen with a ↓ arrow), or menu <b>⋮</b> → <b>Cast, save and share</b> → <b>Install page as app</b>.";
   }
-  window.dbInstall = { standalone, ios, browser, can: () => !!deferred, steps };
+  window.dbInstall = { standalone, ios, android, inApp, browser, can: () => !!deferred, steps };
+  document.documentElement.classList.toggle("in-app", inApp);
+  document.documentElement.classList.toggle("is-ios", ios);
+  document.documentElement.classList.toggle("is-android", android);
+  if (inApp) document.addEventListener("click", e => {        // in the app, "MMG" links open the game tab (bot built in)
+    const a = e.target.closest && e.target.closest('a[href="mmg.html"],a[href$="/mmg.html"]');
+    if (a) { e.preventDefault(); window.DigitBotAndroid.openMmg(); }
+  }, true);
 
   function setStatus(t) { document.querySelectorAll("[data-install-status]").forEach(e => e.innerHTML = t); }
   function show() {

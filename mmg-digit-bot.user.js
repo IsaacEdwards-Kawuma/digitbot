@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.15.0
+// @version      2.16.0
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -782,8 +782,15 @@
   //   While floating the bot keeps trading when the game page is in the background - if the site stops sending ticks
   //   there, the bot notices (no new ticks for 15 s) and stops itself.
   var pipWin = null, pipVid = null;
-  const pipActive = () => !!pipWin || !!(pipVid && document.pictureInPictureElement === pipVid);
+  const APP = window.DigitBotAndroid || null;            // running inside the DigitBot Android app
+  const appFloating = () => { try { return !!(APP && APP.isFloating()); } catch (e) { return false; } };
+  const pipActive = () => !!pipWin || !!(pipVid && document.pictureInPictureElement === pipVid) || appFloating();
   async function floatOn() {
+    if (APP) {                                              // the app floats the whole game + bot over other apps
+      try { if (appFloating()) APP.unfloat(); else { APP.floatOn(); log("⧉ floating over other apps. – makes it a small bubble; ⬅ brings it back into the app.", "ok"); } }
+      catch (e) { log("couldn't float: " + (e.message || e), "warn"); }
+      return;
+    }
     if (pipActive()) return floatOff();
     if (window.documentPictureInPicture && !isPhone()) {
       try {
@@ -831,6 +838,13 @@
     if (pipVid && document.pictureInPictureElement) document.exitPictureInPicture().catch(() => {});
   }
   $("mdbFloat").onclick = floatOn;
+  if (APP) setInterval(() => {                             // live status for the app's floating bubble
+    try {
+      const st = RB.on ? RB.st : null, on = running || RB.on;
+      const pl = st ? st.pl : (startBal != null && balance() != null && running ? balance() - startBal : null);
+      APP.status(JSON.stringify({ on, last: digits.length ? digits[digits.length - 1] : null, pl, trades: st ? st.n : trades, demo: isDemo(), rounds: !!RB.on }));
+    } catch (e) {}
+  }, 1000);
 
   const logLines = [];
   function log(msg, cls) {

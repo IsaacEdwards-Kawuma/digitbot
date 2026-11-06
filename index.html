@@ -31,6 +31,14 @@
   .app { border-color: #0ea5b7; background: #10263a; }
   .app button { background: #0ea5b7; color: #fff; border: 0; border-radius: 12px; padding: 12px 18px; font: 700 1rem system-ui; cursor: pointer; min-height: 46px; }
   .small { color: #94a3b8; font-size: .85rem; margin-top: 10px; }
+  .getapp { border-color: #0ea5b7; background: #10263a; margin: 0 0 18px !important; }
+  .apps { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; margin-top: 10px; }
+  .ap { background: #0f172a; border: 1px solid #334155; border-radius: 12px; padding: 12px; color: #cbd5e1; font-size: .92rem; }
+  .ap b { color: #fff; } .ap small { display: block; color: #94a3b8; margin-top: 8px; font-size: .8rem; }
+  .ap .dl, .ap button { display: inline-block; margin-top: 10px; background: #0ea5b7; color: #fff; border: 0; border-radius: 12px; padding: 11px 16px; font: 700 1rem system-ui; text-decoration: none; cursor: pointer; }
+  .is-android .only-ios, .is-android .only-pc, .is-ios .only-android, .is-ios .only-pc,
+  html:not(.is-android):not(.is-ios) .only-android, html:not(.is-android):not(.is-ios) .only-ios { display: none; }
+  .in-app [data-getapp] { display: none; }
   @media (display-mode: standalone) { .wrap { padding-top: max(22px, env(safe-area-inset-top)); } }
 </style>
 </head>
@@ -39,7 +47,21 @@
   <div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><h1>🤖 DigitBot</h1><a href="settings.html" style="background:#1e293b;border:1px solid #334155;border-radius:12px;padding:8px 14px;text-decoration:none;color:#e2e8f0;font-weight:600">⚙️ Settings</a></div>
   <div class="sub">Choose what you want the bot to trade. Everything starts on DEMO / practice money.</div>
 
-  <div class="box app" style="margin:0 0 18px" data-install-box>
+  <div class="box getapp" data-getapp>
+    <b style="color:#fff;font-size:1.1rem">📱 Get the DigitBot app</b>
+    <div class="apps">
+      <div class="ap only-android"><b>🤖 Android app</b><br>The MMG game with the bot built in, floats over other apps, plus Forex/Crypto.
+        <a class="dl" href="app/DigitBot.apk" download>⬇ Download APK</a>
+        <small>Open the file and tap <b>Install</b>. If asked, allow your browser to "install unknown apps".</small></div>
+      <div class="ap only-ios"><b>🍎 iPhone / iPad</b><br>Safari → <b>Share</b> → <b>Add to Home Screen</b>. DigitBot opens full screen like an app.
+        <button data-install>📲 How to install</button>
+        <small>MMG bot on iPhone: the <a href="mmg.html">bookmark or the Userscripts extension</a> in Safari.</small></div>
+      <div class="ap only-pc"><b>💻 Computer</b><br>Chrome / Edge: the install icon in the address bar, or the button below.
+        <button data-install>📲 Install app</button>
+        <small>MMG bot on PC: Tampermonkey or the bookmark, see <a href="mmg.html">MMG digits</a>. Android APK: <a href="app/DigitBot.apk" download>download</a>.</small></div>
+    </div>
+  </div>
+  <div class="box app" style="margin:0 0 18px;display:none" data-install-box>
     <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
       <img src="icons/icon-192.png" alt="" width="56" height="56" style="border-radius:14px">
       <div style="flex:1;min-width:220px"><b style="color:#fff;font-size:1.1rem">📲 Install DigitBot as an app</b><br>

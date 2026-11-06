@@ -54,6 +54,9 @@
         <span class="mut" data-install-status></span></div>
       <button class="p" data-install id="instBtn">📲 Install app</button>
     </div>
+    <div class="row" id="apkRow"><div class="t">🤖 Android app (APK)<small>The MMG game with the bot built in, floats over other apps (bubble), plus everything on this site.
+      Open the file and tap Install; allow "install unknown apps" if asked.</small></div><a href="app/DigitBot.apk" download><button>⬇ Download APK</button></a></div>
+    <div class="row" id="iosRow"><div class="t">🍎 iPhone / iPad<small>Safari → Share → Add to Home Screen. The MMG bot runs in Safari with the bookmark or the Userscripts extension.</small></div></div>
     <div class="row"><div class="t">Offline copy<small id="cacheInfo">checking…</small></div>
       <button id="updBtn">🔄 Get the newest version</button></div>
     <div class="row"><div class="t">Install button on pages<small>The small 📲 pill at the bottom of the trading pages.</small></div>
@@ -141,6 +144,8 @@
 
   // 📲 app
   const inst = window.dbInstall || {};
+  if (inst.inApp) { $("apkRow").querySelector("small").textContent = "You're in the Android app (version " + window.DigitBotAndroid.version() + "). It tells you when a new version is out."; $("apkRow").querySelector("a").style.display = "none"; $("iosRow").style.display = "none"; }
+  else if (inst.ios) $("apkRow").style.display = "none";
   if (inst.standalone) { $("appState").innerHTML = "<span class='ok'>✅ You're using the installed app</span>"; $("instBtn").style.display = "none";
     document.querySelector("[data-install-status]").textContent = "DigitBot is installed on this device."; }
   $("pill").checked = localStorage.getItem("dbInstallHide") !== "1";
@@ -170,6 +175,7 @@
   notState();
   $("notBtn").onclick = async () => { try { await Notification.requestPermission(); } catch (e) {} notState(); };
   $("notTest").onclick = async () => {
+    if (window.DigitBotAndroid) { new Notification("DigitBot test", { body: "Alerts will look like this." }); return toast("Sent ✓"); }
     if (!("Notification" in window) || Notification.permission !== "granted") return toast("Allow notifications first");
     const opt = { body: "Alerts will look like this.", icon: "icons/icon-192.png" };
     try { const r = navigator.serviceWorker && await navigator.serviceWorker.getRegistration(); if (r) r.showNotification("DigitBot test", opt); else new Notification("DigitBot test", opt); }
