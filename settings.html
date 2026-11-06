@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="DigitBot">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<title>DigitBot – Settings</title>
+<style>
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; line-height: 1.5; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: max(18px, env(safe-area-inset-top)) 14px 60px; }
+  .top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .top a { color: #38bdf8; text-decoration: none; font-weight: 600; }
+  h1 { font-size: 1.7rem; margin: 6px 0 2px; color: #fff; }
+  .sub { color: #94a3b8; margin-bottom: 14px; }
+  nav { display: flex; gap: 6px; flex-wrap: wrap; position: sticky; top: 0; background: #0f172a; padding: 8px 0; z-index: 5; }
+  nav a { background: #1e293b; border: 1px solid #334155; color: #cbd5e1; border-radius: 999px; padding: 6px 12px; text-decoration: none; font-size: .9rem; }
+  section { background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 16px; margin-top: 14px; scroll-margin-top: 60px; }
+  section h2 { margin: 0 0 10px; font-size: 1.15rem; color: #fff; }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 10px 0; border-top: 1px solid #263449; flex-wrap: wrap; }
+  .row:first-of-type { border-top: 0; }
+  .row .t { flex: 1; min-width: 200px; } .row .t small { display: block; color: #94a3b8; font-size: .83rem; }
+  select, input[type=number], input[type=text] { background: #0f172a; color: #e2e8f0; border: 1px solid #475569; border-radius: 10px; padding: 8px 10px; font-size: 16px; min-height: 40px; }
+  input[type=number] { width: 110px; } input[type=color] { width: 54px; height: 40px; border: 0; background: none; padding: 0; }
+  input[type=checkbox] { width: 24px; height: 24px; accent-color: #0ea5b7; }
+  input[type=range] { width: 160px; accent-color: #0ea5b7; }
+  button { background: #334155; color: #fff; border: 0; border-radius: 12px; padding: 10px 16px; font: 600 15px system-ui; cursor: pointer; min-height: 44px; }
+  button.p { background: #0ea5b7; } button.d { background: #b91c1c; }
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+  .app { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .ok { color: #86efac; } .mut { color: #94a3b8; font-size: .85rem; }
+  #toast { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); background: #0ea5b7; color: #fff; padding: 10px 16px; border-radius: 12px; font-weight: 600; display: none; z-index: 50; }
+  a { color: #38bdf8; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><a href="index.html">← Home</a><a href="trade.html#crypto">₿ Crypto</a><a href="trade.html#forex">💱 Forex</a></div>
+  <h1>⚙️ Settings</h1>
+  <div class="sub">Saved on this device and used by the Forex/Crypto pages straight away. Changes save by themselves.</div>
+  <nav><a href="#app">📲 App</a><a href="#chart">📈 Charts</a><a href="#risk">🛡️ Trading defaults</a><a href="#alerts">🔔 Alerts</a><a href="#backup">💾 Backup</a><a href="#bots">🤖 Bots</a></nav>
+
+  <section id="app">
+    <h2>📲 App</h2>
+    <div class="app">
+      <img src="icons/icon-192.png" alt="" width="60" height="60" style="border-radius:14px">
+      <div style="flex:1;min-width:220px"><b id="appState">Install DigitBot as an app</b><br>
+        <span class="mut" data-install-status></span></div>
+      <button class="p" data-install id="instBtn">📲 Install app</button>
+    </div>
+    <div class="row"><div class="t">Offline copy<small id="cacheInfo">checking…</small></div>
+      <button id="updBtn">🔄 Get the newest version</button></div>
+    <div class="row"><div class="t">Install button on pages<small>The small 📲 pill at the bottom of the trading pages.</small></div>
+      <input type="checkbox" id="pill"></div>
+    <div class="row"><div class="t">Floating over other apps<small>A web app can't float by itself. In the MMG bot press ⧉ Float: on a PC (Chrome/Edge) the whole bot stays on top of other windows;
+      on Android Chrome a small live status window floats over other apps.</small></div></div>
+  </section>
+
+  <section id="chart">
+    <h2>📈 Charts</h2>
+    <div class="row"><div class="t">Start-up timeframe</div><select data-k="tf">
+      <option value="1s">⚡ Live (1 s)</option><option value="1m">M1</option><option value="3m">M3</option><option value="5m">M5</option><option value="15m">M15</option>
+      <option value="30m">M30</option><option value="1h">H1</option><option value="4h">H4</option><option value="1d">D1</option></select></div>
+    <div class="row"><div class="t">Start-up view</div><select data-k="startView"><option value="full">Full</option><option value="mini">Mini (chart + signals)</option></select></div>
+    <div class="row"><div class="t">Remember the last market and timeframe</div><input type="checkbox" data-k="remember"></div>
+    <div class="row"><div class="t">Auto-refresh prices</div><input type="checkbox" data-k="autoRef"></div>
+    <div class="row"><div class="t">Times in UTC<small>Off = your local time. MetaTrader prices always use broker time.</small></div><input type="checkbox" data-k="utc"></div>
+    <div class="row"><div class="t">Grid lines</div><input type="checkbox" data-k="grid"></div>
+    <div class="row"><div class="t">Candle colours (up / down) and background</div>
+      <div class="btns"><input type="color" data-k="up"><input type="color" data-k="down"><input type="color" data-k="bg"></div></div>
+    <div class="row"><div class="t">Markets in the watchlist</div><input type="number" data-k="watchN" min="6" max="60" step="1"></div>
+  </section>
+
+  <section id="risk">
+    <h2>🛡️ Trading defaults</h2>
+    <div class="mut">Used by backtests, practice trading and auto-practice. Start small: most retail traders lose money.</div>
+    <div class="row"><div class="t">Risk per trade (% of balance)</div><input type="number" data-k="risk" min="0.1" max="5" step="0.1"></div>
+    <div class="row"><div class="t">Stop-loss distance (× ATR)</div><input type="number" data-k="slAtr" min="0.5" max="5" step="0.1"></div>
+    <div class="row"><div class="t">Take-profit (reward : risk)</div><input type="number" data-k="rr" min="0.5" max="6" step="0.1"></div>
+    <div class="row"><div class="t">Move stop to break-even after (× risk)<small>0 = never</small></div><input type="number" data-k="be" min="0" max="5" step="0.1"></div>
+    <div class="row"><div class="t">Trailing stop (× ATR)<small>0 = off</small></div><input type="number" data-k="trail" min="0" max="6" step="0.1"></div>
+    <div class="row"><div class="t">Daily loss limit (% of balance)<small>Auto-practice stops for the day when it's reached.</small></div><input type="number" data-k="dayLoss" min="0.5" max="20" step="0.5"></div>
+    <div class="row"><div class="t">Practice account start balance<small>Used the next time you reset a practice account.</small></div><input type="number" data-k="start" min="100" max="1000000" step="100"></div>
+  </section>
+
+  <section id="alerts">
+    <h2>🔔 Alerts</h2>
+    <div class="row"><div class="t">Sound on alerts and signals</div><input type="checkbox" data-k="sound"></div>
+    <div class="row"><div class="t">Volume</div><div class="btns"><input type="range" data-k="volume" min="0.01" max="0.4" step="0.01"><button id="testSnd">▶ Test</button></div></div>
+    <div class="row"><div class="t">Pop-up notifications<small id="notState"></small></div><div class="btns"><button id="notBtn">Allow</button><button id="notTest">Test</button></div></div>
+  </section>
+
+  <section id="backup">
+    <h2>💾 Backup</h2>
+    <div class="mut">Settings, favourites, alerts, drawings, your own strategies and practice accounts from the Forex/Crypto pages.</div>
+    <div class="row"><div class="t">Save everything to a file<small>Keep it to move to a new phone or PC.</small></div><button id="expBtn">⬇ Save backup</button></div>
+    <div class="row"><div class="t">Load a backup file</div><div class="btns"><button id="impBtn">⬆ Load backup</button><input type="file" id="impFile" accept=".json,application/json" hidden></div></div>
+    <div class="row"><div class="t">Settings back to normal<small>Only this page's settings. Favourites, strategies and accounts stay.</small></div><button id="resetBtn">↺ Reset settings</button></div>
+    <div class="row"><div class="t">Delete all DigitBot data on this device<small>Can't be undone - save a backup first.</small></div><button class="d" id="wipeBtn">🗑 Delete all</button></div>
+  </section>
+
+  <section id="bots">
+    <h2>🤖 Bots</h2>
+    <div class="row"><div class="t">🎯 MMG Digit Bot<small>Its settings (stake, strategies, Rounds, loss limits, wallet) are inside the bot panel on the MMG page, because it runs there.</small></div><a href="mmg.html"><button>Install / update</button></a></div>
+    <div class="row"><div class="t">🖱️ Screen Trader<small>Its settings are in its own panel on Binance / TradingView / MT5 Web.</small></div><a href="screen.html"><button>Install / update</button></a></div>
+    <div class="row"><div class="t">🎬 Tutorial videos</div><a href="tutorials.html"><button>Open</button></a></div>
+  </section>
+</div>
+<div id="toast"></div>
+<script src="pwa.js"></script>
+<script>
+(function () {
+  const $ = id => document.getElementById(id);
+  const DEF = { remember: true, tf: "1h", startView: "full", up: "#22c55e", down: "#ef4444", bg: "#0b1220", grid: true, utc: false,
+                sound: true, volume: 0.08, slAtr: 1.5, rr: 2, be: 1, risk: 1, trail: 2, dayLoss: 3, start: 10000, autoRef: true, watchN: 24 };
+  let SET = Object.assign({}, DEF); try { Object.assign(SET, JSON.parse(localStorage.getItem("dbSettings") || "{}")); } catch (e) {}
+  const save = () => { localStorage.setItem("dbSettings", JSON.stringify(SET)); toast("Saved ✓"); };
+  let tt; function toast(t) { const e = $("toast"); e.textContent = t; e.style.display = "block"; clearTimeout(tt); tt = setTimeout(() => e.style.display = "none", 1400); }
+  function fill() {
+    document.querySelectorAll("[data-k]").forEach(el => {
+      const k = el.dataset.k, v = SET[k] ?? DEF[k];
+      if (el.type === "checkbox") el.checked = !!v; else el.value = v;
+    });
+  }
+  document.querySelectorAll("[data-k]").forEach(el => el.addEventListener("change", () => {
+    const k = el.dataset.k;
+    if (el.type === "checkbox") SET[k] = el.checked;
+    else if (el.type === "number" || el.type === "range") {
+      let v = +el.value; if (isNaN(v)) return fill();
+      if (el.min !== "") v = Math.max(+el.min, v); if (el.max !== "") v = Math.min(+el.max, v); SET[k] = v; el.value = v;
+    } else SET[k] = el.value;
+    save();
+  }));
+  fill();
+
+  // 📲 app
+  const inst = window.dbInstall || {};
+  if (inst.standalone) { $("appState").innerHTML = "<span class='ok'>✅ You're using the installed app</span>"; $("instBtn").style.display = "none";
+    document.querySelector("[data-install-status]").textContent = "DigitBot is installed on this device."; }
+  $("pill").checked = localStorage.getItem("dbInstallHide") !== "1";
+  $("pill").onchange = () => { localStorage.setItem("dbInstallHide", $("pill").checked ? "0" : "1"); toast("Saved ✓"); };
+  async function cacheInfo() {
+    if (!("caches" in window)) { $("cacheInfo").textContent = "Not available in this browser."; return; }
+    const ks = await caches.keys(); let n = 0; for (const k of ks) n += (await (await caches.open(k)).keys()).length;
+    const ctl = navigator.serviceWorker && navigator.serviceWorker.controller;
+    $("cacheInfo").textContent = n ? `${n} files saved for offline use${ctl ? " - working offline is on" : ""}.` : "Nothing saved yet - pages are saved as you open them.";
+  }
+  cacheInfo();
+  $("updBtn").onclick = async () => {
+    try { if ("caches" in window) for (const k of await caches.keys()) await caches.delete(k);
+      if (navigator.serviceWorker) for (const r of await navigator.serviceWorker.getRegistrations()) await r.update(); } catch (e) {}
+    toast("Getting the newest version…"); setTimeout(() => location.reload(), 600);
+  };
+
+  // 🔔 alerts
+  function beep() { try { const a = new (window.AudioContext || window.webkitAudioContext)(), o = a.createOscillator(), g = a.createGain(); o.frequency.value = 880; g.gain.value = +SET.volume || 0.08; o.connect(g); g.connect(a.destination); o.start(); setTimeout(() => { o.frequency.value = 1320; }, 150); setTimeout(() => { o.stop(); a.close(); }, 320); } catch (e) {} }
+  $("testSnd").onclick = beep;
+  function notState() {
+    const p = "Notification" in window ? Notification.permission : "unsupported";
+    $("notState").textContent = { granted: "✅ Allowed - alerts pop up even when DigitBot is in the background.", denied: "Blocked. Allow notifications for this site in the browser's site settings (🔒 next to the address).",
+      default: "Not allowed yet.", unsupported: "This browser doesn't support pop-up notifications (on iPhone: install the app first)." }[p];
+    $("notBtn").style.display = p === "default" ? "" : "none";
+  }
+  notState();
+  $("notBtn").onclick = async () => { try { await Notification.requestPermission(); } catch (e) {} notState(); };
+  $("notTest").onclick = async () => {
+    if (!("Notification" in window) || Notification.permission !== "granted") return toast("Allow notifications first");
+    const opt = { body: "Alerts will look like this.", icon: "icons/icon-192.png" };
+    try { const r = navigator.serviceWorker && await navigator.serviceWorker.getRegistration(); if (r) r.showNotification("DigitBot test", opt); else new Notification("DigitBot test", opt); }
+    catch (e) { new Notification("DigitBot test", opt); }
+  };
+
+  // 💾 backup
+  const mine = k => /^db/.test(k);
+  $("expBtn").onclick = () => {
+    const data = {}; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (mine(k)) data[k] = localStorage.getItem(k); }
+    const blob = new Blob([JSON.stringify({ app: "DigitBot", saved: new Date().toISOString(), data }, null, 1)], { type: "application/json" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "digitbot-backup-" + new Date().toISOString().slice(0, 10) + ".json"; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000); toast(`Backup saved (${Object.keys(data).length} items)`);
+  };
+  $("impBtn").onclick = () => $("impFile").click();
+  $("impFile").onchange = async () => {
+    const f = $("impFile").files[0]; if (!f) return;
+    try {
+      const j = JSON.parse(await f.text()); if (j.app !== "DigitBot" || !j.data) throw new Error("not a DigitBot backup");
+      const ks = Object.keys(j.data).filter(mine);
+      if (!confirm(`Load ${ks.length} items from this backup? Matching data on this device is replaced.`)) return;
+      ks.forEach(k => localStorage.setItem(k, j.data[k]));
+      try { SET = Object.assign({}, DEF, JSON.parse(localStorage.getItem("dbSettings") || "{}")); } catch (e) {}
+      fill(); toast(`Backup loaded (${ks.length} items)`);
+    } catch (e) { alert("Couldn't load that file: " + e.message); }
+    $("impFile").value = "";
+  };
+  $("resetBtn").onclick = () => { if (!confirm("Put all settings on this page back to normal?")) return; SET = Object.assign({}, DEF); save(); fill(); };
+  $("wipeBtn").onclick = () => {
+    if (prompt("This deletes settings, favourites, alerts, drawings, your strategies and practice accounts on this device.\nType DELETE to confirm.") !== "DELETE") return;
+    const ks = []; for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (mine(k)) ks.push(k); }
+    ks.forEach(k => localStorage.removeItem(k)); SET = Object.assign({}, DEF); fill(); toast(`Deleted ${ks.length} items`);
+  };
+  window.dbSettingsPage = { get: () => SET };
+})();
+</script>
+</body>
+</html>

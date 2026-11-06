@@ -622,7 +622,8 @@
     const f = (k, l, type, extra2) => `<label>${l}<input data-k="${k}" type="${type}" ${type === "checkbox" ? (SET[k] ? "checked" : "") : `value="${SET[k]}"`} ${extra2 || ""}></label>`;
     const sel = (k, l, opts) => `<label>${l}<select data-k="${k}">${opts.map(([v, t]) => `<option value="${v}" ${String(SET[k]) === String(v) ? "selected" : ""}>${t}</option>`).join("")}</select></label>`;
     $("setBox").innerHTML = `<div style="display:flex;justify-content:space-between;align-items:center"><h2>⚙️ Settings</h2><button id="setClose">✕ Close</button></div>
-      <div class="note" style="margin-top:0">Saved in this browser and used every time you open the page.</div>
+      <div class="note" style="margin-top:0">Saved in this browser and used every time you open the page.
+        More (📲 install app, notifications, backup): <a href="settings.html" style="color:#38bdf8">open the full Settings page →</a></div>
       <h3>Start-up</h3><div class="grid">
         ${f("remember", "Open the market and timeframe I used last", "checkbox")}
         ${sel("tf", "Default timeframe", [["1s", "Live (1 s)"], ["1m", "M1"], ["3m", "M3"], ["5m", "M5"], ["15m", "M15"], ["30m", "M30"], ["1h", "H1"], ["4h", "H4"], ["1d", "D1"]])}

@@ -31,7 +31,7 @@
     if (standalone) { box.forEach(b => b.style.display = "none"); return; }
     document.querySelectorAll("[data-install]").forEach(b => b.style.display = "");
     setStatus(deferred ? "Tap the button - DigitBot gets its own icon and opens full screen like a normal app." : steps());
-    if (!box.length && localStorage.getItem("dbInstallHide") !== "1" && !document.getElementById("dbInstallPill")) {
+    if (!box.length && !document.querySelector("button[data-install]") && localStorage.getItem("dbInstallHide") !== "1" && !document.getElementById("dbInstallPill")) {
       const p = document.createElement("div"); p.id = "dbInstallPill";
       p.style.cssText = "position:fixed;left:10px;bottom:10px;z-index:99999;background:#0ea5b7;color:#fff;border-radius:999px;padding:8px 12px;font:600 14px system-ui;box-shadow:0 4px 14px rgba(0,0,0,.35);display:flex;gap:10px;align-items:center;cursor:pointer";
       p.innerHTML = "<span>📲 Install app</span><span title='hide' style='opacity:.8'>✕</span>";

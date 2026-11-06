@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.14.0
+// @version      2.15.0
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -1277,6 +1277,34 @@
       { c: "lost", s: "add", v: 0.5, b: "even" },                    // after a loss: +$0.50 (max $2.50)
       { c: "won", s: "sub", v: 0.5, b: "even" },                     // after a win: −$0.50 (min $1)
       { c: "always", s: "keep", b: "even" } ] },
+    "🧊 Differs rotation ($0.50 flat)": { start: 0.5, cap: 0.5, tp: 2, sl: 5, maxTrades: 30, wallet: "demo", rules: [
+      { c: "lossRow", n: 2, s: "reset", b: "skip" },                 // 2 losses in a row: sit out one round
+      { c: "lost", s: "reset", b: "differ", pick: 9 },               // after a loss: Differs 9
+      { c: "dGt", n: 6, s: "reset", b: "differ", pick: 2 },          // last digit 7-9: Differs 2
+      { c: "dLt", n: 3, s: "reset", b: "differ", pick: 8 },          // last digit 0-2: Differs 8
+      { c: "dEven", s: "reset", b: "differ", pick: 7 },              // last digit 4 or 6: Differs 7
+      { c: "always", s: "reset", b: "differ", pick: 3 } ] },         // otherwise: Differs 3
+    "🪜 Mini-Martingale (safe remake)": { start: 0.5, cap: 2, tp: 3, sl: 8, maxTrades: 40, wallet: "demo", rules: [
+      { c: "lossRow", n: 3, s: "reset", b: "skip" },                 // 3 losses: stop doubling, sit out, back to $0.50
+      { c: "plDown", n: 5, s: "set", v: 0.35, b: "differ", pick: 0 },// $5 down: smallest stake on Differs 0
+      { c: "plUp", n: 2, s: "set", v: 0.35, b: "even" },             // $2 up: protect it with $0.35 stakes
+      { c: "lost", s: "mult", v: 2, b: "even" },                     // after a loss: double (never above $2)
+      { c: "won", s: "reset", b: "even" },                           // after a win: back to $0.50
+      { c: "always", s: "reset", b: "even" } ] },
+    "🐢 Fibonacci lite (safe remake)": { start: 0.5, cap: 2.5, tp: 4, sl: 10, maxTrades: 40, wallet: "demo", rules: [
+      { c: "lossRow", n: 4, s: "reset", b: "skip" },                 // 4 losses: sit out, back to the start
+      { c: "plDown", n: 6, s: "reset", b: "differ", pick: 0 },       // $6 down: $0.50 Differs 0 only
+      { c: "plUp", n: 3, s: "reset", b: "differ", pick: 0 },         // $3 up: calm down on Differs 0
+      { c: "lost", s: "fibUp", b: "even" },                          // after a loss: one Fibonacci step up (max $2.50)
+      { c: "won", s: "fibBack", b: "even" },                         // after a win: two steps back
+      { c: "always", s: "reset", b: "even" } ] },
+    "🧘 Patient Even/Odd ($0.50)": { start: 0.5, cap: 0.5, tp: 3, sl: 6, maxTrades: 30, wallet: "demo", rules: [
+      { c: "lossRow", n: 2, s: "reset", b: "skip" },                 // 2 losses in a row: sit out one round
+      { c: "winRow", n: 4, s: "reset", b: "skip" },                  // 4 wins in a row: sit out (don't push luck)
+      { c: "plDown", n: 4, s: "set", v: 0.35, b: "differ", pick: 0 },// $4 down: smallest stake on Differs 0
+      { c: "dEven", s: "reset", b: "odd" },                          // last digit even: Odd
+      { c: "dOdd", s: "reset", b: "even" },                          // last digit odd: Even
+      { c: "always", s: "reset", b: "even" } ] },
   };
   BS.presetsAdded = BS.presetsAdded || [];
   for (const [k, v] of Object.entries(PRESETS)) if (!BS.presetsAdded.includes(k)) { if (!BS.saved[k]) BS.saved[k] = JSON.parse(JSON.stringify(v)); BS.presetsAdded.push(k); }

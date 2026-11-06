@@ -21,6 +21,7 @@
     { "name": "Crypto", "url": "./trade.html#crypto", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
     { "name": "Forex", "url": "./trade.html#forex", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
     { "name": "MMG digit bot", "url": "./mmg.html", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Screen Trader", "url": "./screen.html", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+    { "name": "Screen Trader", "url": "./screen.html", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Settings", "url": "./settings.html", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }
