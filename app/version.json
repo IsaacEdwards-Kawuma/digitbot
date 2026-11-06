@@ -1,1 +1,2 @@
-{ "version": "1.0.0", "code": 1, "apk": "app/DigitBot.apk", "notes": "First version of the DigitBot Android app." }
+{ "version": "2.0.0", "code": 2, "apk": "app/DigitBot.apk",
+  "notes": "New: the floating bot - a bubble over MMG and every app with Start / Stop, P/L and the latest message; the bot keeps playing while you use other apps. Accounts (each with its own MMG login and settings), fingerprint / face lock, a settings screen, trade and stop notifications, and updates inside the app." }

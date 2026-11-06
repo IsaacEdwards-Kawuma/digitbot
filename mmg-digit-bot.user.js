@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.16.0
+// @version      2.17.0
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -842,13 +842,17 @@
     try {
       const st = RB.on ? RB.st : null, on = running || RB.on;
       const pl = st ? st.pl : (startBal != null && balance() != null && running ? balance() - startBal : null);
-      APP.status(JSON.stringify({ on, last: digits.length ? digits[digits.length - 1] : null, pl, trades: st ? st.n : trades, demo: isDemo(), rounds: !!RB.on }));
+      APP.status(JSON.stringify({ on, last: digits.length ? digits[digits.length - 1] : null, pl, trades: st ? st.n : trades, demo: isDemo(), rounds: !!RB.on,
+        msg: lastMsg, digits: digits.slice(-10).join(" "), bal: balance() }));
     } catch (e) {}
   }, 1000);
 
   const logLines = [];
+  let lastMsg = "";
   function log(msg, cls) {
     const t = new Date().toTimeString().slice(0, 8);
+    lastMsg = String(msg).replace(/<[^>]+>/g, "");
+    try { if (window.DigitBotAndroid) window.DigitBotAndroid.event(cls || "", lastMsg); } catch (e) {}   // app notifications
     logLines.push(`<div class="${cls || ""}">${t} ${msg}</div>`); if (logLines.length > 200) logLines.shift();
     const L = $("mdbLog"); L.innerHTML = logLines.join(""); L.scrollTop = L.scrollHeight;
   }
