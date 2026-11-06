@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.13.0
+// @version      2.14.0
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -304,6 +304,24 @@
   #mdb .warn{color:#b91c1c;font-weight:600} #mdb .ok{color:#15803d;font-weight:600}
   #mdb .log .warn{color:#fca5a5} #mdb .log .ok{color:#86efac}
   #mdb.min .bd,#mdb.min .hp,#mdb.min .wl,#mdb.min #mdbHelp,#mdb.min #mdbHome,#mdb.min #mdbX{display:none!important}
+  /* 📱 phone: a bottom sheet across the screen; tap the title bar to switch half / full / bar */
+  #mdb.phone:not(.min){left:0!important;right:0!important;top:auto!important;bottom:0!important;width:100vw;max-width:100vw;border-radius:16px 16px 0 0;border-bottom:0;
+   padding-bottom:env(safe-area-inset-bottom)}
+  #mdb.phone:not(.min) .hd{padding:6px 10px 8px;cursor:pointer;flex-wrap:wrap;position:relative}
+  #mdb.phone:not(.min) .hd::before{content:"";position:absolute;left:50%;top:3px;width:42px;height:4px;margin-left:-21px;border-radius:3px;background:rgba(255,255,255,.55)}
+  #mdb.phone .hd button{min-width:38px;min-height:34px;font-size:16px}
+  #mdb.phone .bd,#mdb.phone .hp{max-height:44vh} #mdb.phone.sfull .bd,#mdb.phone.sfull .hp{max-height:calc(86vh - 50px)}
+  #mdb.phone.sbar:not(.min) .bd,#mdb.phone.sbar:not(.min) .hp,#mdb.phone.sbar:not(.min) .wl{display:none!important}
+  #mdb.phone input,#mdb.phone select{font-size:16px;min-height:40px}
+  #mdb.phone .tabs{position:sticky;top:-8px;z-index:3;background:#fff;padding-top:6px;margin-top:-6px}
+  #mdb.phone .tabs button{font-size:14px;padding:10px 2px;min-height:44px}
+  #mdb.phone .go{position:sticky;bottom:-8px;z-index:3;background:#fff;padding:8px 0 10px;margin-bottom:-8px}
+  #mdb.phone .go button,#mdb.phone .once,#mdb.phone .clr{min-height:46px;font-size:16px}
+  #mdb.phone .rbl select,#mdb.phone .rbl input{font-size:15px;min-height:36px} #mdb.phone .rbx button{min-width:34px;min-height:32px;font-size:14px}
+  #mdb.phone .ck input{width:22px;height:22px}
+  /* ⧉ pop-out window (Picture-in-Picture): fill it */
+  #mdb.pip{position:static!important;width:100%!important;max-width:none;height:100vh;border-radius:0;border:0;box-shadow:none;display:flex;flex-direction:column}
+  #mdb.pip .bd,#mdb.pip .hp{max-height:none;flex:1} #mdb.pip .hd{cursor:default}
   #mdb.min{width:auto;border-radius:999px} #mdb.min .hd{padding:7px 12px;border-radius:999px}
   #mdb.min .hd b{flex:none} #mdb .hd #mdbBadge{font-size:12px;font-weight:600;white-space:nowrap}
   #mdb .tabs{display:flex;gap:6px;margin-bottom:8px}
@@ -446,6 +464,10 @@
     <li><b>“Can't find the digit circles / price”</b>: open the Manual Trader page, then press Start.</li>
     <li><b>“Wait until your open trades have finished”</b>: wait for the Open (N) trades to settle.</li>
     <li>Panel gone? Tap the Digit Bot bookmark again.</li>
+    <li><b>⧉ Float</b>: on a PC (Chrome/Edge) the whole bot moves into a small window that stays on top of other apps.
+      On a phone a small live status window floats over other apps (its ⏸ stops the bot); open the game again for the settings.
+      While floating the bot keeps trading in the background; if the site stops sending ticks there, it stops itself.</li>
+    <li><b>📱 Phone</b>: the bot sits at the bottom of the screen. Tap its title bar to switch half / full / small bar.</li>
     <li><b>Floating bubble</b>: “–” shrinks the bot to a small bubble showing LIVE, trades and P/L.
         Drag it anywhere; tap it to open. The place is remembered.</li>
     <li>The screen stays on while the bot runs. If you switch to another app or tab, the bot <b>pauses</b>
@@ -471,7 +493,7 @@
   const box = document.createElement("div"); box.id = "mdb";
   const opt = (v, t) => `<option value="${v}">${t}</option>`;
   box.innerHTML = `
-  <div class="hd"><b>🤖 Digit Bot</b><span id="mdbBadge"></span><button id="mdbHome" title="Welcome: MMG, Forex or Crypto">🏠</button><button id="mdbHelp" title="Help: how the bot works">?</button><button id="mdbMin">–</button><button id="mdbX">✕</button></div>
+  <div class="hd"><b>🤖 Digit Bot</b><span id="mdbBadge"></span><button id="mdbHome" title="Welcome: MMG, Forex or Crypto">🏠</button><button id="mdbHelp" title="Help: how the bot works">?</button><button id="mdbFloat" title="Float: keep the bot on top of other apps">⧉</button><button id="mdbMin">–</button><button id="mdbX">✕</button></div>
   <div class="bd">
    <div class="tabs"><button id="tabAuto">⚡ Auto</button><button id="tabMan">✋ Manual</button><button id="tabBuild">🧩 Rounds</button><button id="tabStats">📊 Stats</button></div>
    <div class="g" id="pAuto">
@@ -566,7 +588,7 @@
   const $ = id => box.querySelector("#" + id);
   function mount() {
     if (!document.body) return;
-    if (!document.getElementById("mdb")) { document.head.appendChild(style); document.body.appendChild(box); }
+    if (!document.getElementById("mdb") && !(typeof pipWin !== "undefined" && pipWin)) { document.head.appendChild(style); document.body.appendChild(box); }
     if (!document.getElementById("mdbTrade")) document.body.appendChild(tw);
   }
   mount();
@@ -682,6 +704,16 @@
   }
   $("mdbMin").onclick = () => setMin(!box.classList.contains("min"));
   if (UI.min) box.classList.add("min");
+  // 📱 phone layout: on small or touch screens the panel becomes a bottom sheet (half / full / bar)
+  const isPhone = () => UI.layout === "phone" || (UI.layout !== "desk" && (innerWidth <= 700 || matchMedia("(pointer: coarse)").matches && innerWidth <= 1000));
+  function applyLayout() {
+    box.classList.toggle("phone", isPhone() && !box.classList.contains("pip"));
+    ["shalf", "sfull", "sbar"].forEach(c => box.classList.toggle(c, c === "s" + (UI.sheet || "half")));
+    if (!box.classList.contains("phone")) placeBox();
+  }
+  function cycleSheet() { UI.sheet = { half: "full", full: "bar", bar: "half" }[UI.sheet || "half"]; saveUI(); applyLayout(); }
+  addEventListener("resize", applyLayout); addEventListener("orientationchange", () => setTimeout(applyLayout, 300));
+  applyLayout();
   // ---- welcome screen: MMG digits / Forex / Crypto
   const tq = id => tw.querySelector("#" + id);
   function showWelcome(on) {
@@ -727,7 +759,10 @@
   // drag the panel by its header (mouse + touch)
   (() => {
     const hd = box.querySelector(".hd"); let sx, sy, ox, oy, drag = false, moved = false;
-    hd.addEventListener("pointerdown", e => { if (e.target.tagName === "BUTTON") return; drag = true; moved = false; sx = e.clientX; sy = e.clientY;
+    hd.addEventListener("pointerdown", e => { if (e.target.tagName === "BUTTON") return;
+      if (box.classList.contains("phone") && !box.classList.contains("min")) { cycleSheet(); return; }   // phone sheet: tap = half / full / bar
+      if (box.classList.contains("pip")) return;
+      drag = true; moved = false; sx = e.clientX; sy = e.clientY;
       const r = box.getBoundingClientRect(); ox = r.left; oy = r.top; hd.setPointerCapture(e.pointerId); });
     hd.addEventListener("pointermove", e => { if (!drag) return;
       if (Math.abs(e.clientX - sx) + Math.abs(e.clientY - sy) > 6) moved = true; if (!moved) return;
@@ -740,6 +775,62 @@
     });
     hd.addEventListener("pointercancel", () => { drag = false; });
   })();
+
+  // ⧉ FLOAT: keep the bot on top of other apps
+  //   PC Chrome/Edge: the whole panel moves into an always-on-top window (Document Picture-in-Picture); buttons work.
+  //   Phones / other browsers: a small live status "video" floats over other apps (Picture-in-Picture); its ⏸ stops the bot.
+  //   While floating the bot keeps trading when the game page is in the background - if the site stops sending ticks
+  //   there, the bot notices (no new ticks for 15 s) and stops itself.
+  var pipWin = null, pipVid = null;
+  const pipActive = () => !!pipWin || !!(pipVid && document.pictureInPictureElement === pipVid);
+  async function floatOn() {
+    if (pipActive()) return floatOff();
+    if (window.documentPictureInPicture && !isPhone()) {
+      try {
+        pipWin = await documentPictureInPicture.requestWindow({ width: 360, height: 640 });
+        const st2 = pipWin.document.createElement("style"); st2.textContent = css + "body{margin:0}"; pipWin.document.head.appendChild(st2);
+        pipWin.document.title = "Digit Bot";
+        box.classList.add("pip"); box.classList.remove("min", "phone"); pipWin.document.body.appendChild(box);
+        pipWin.addEventListener("pagehide", () => { box.classList.remove("pip"); pipWin = null; document.body.appendChild(box); applyLayout(); log("floating window closed - the bot is back on the page"); });
+        log("⧉ floating: the bot stays on top of other apps. Close that window to bring it back.", "ok");
+        return;
+      } catch (e) { log("couldn't open the floating window (" + (e.message || e) + ") - trying the small status window", "warn"); }
+    }
+    try {
+      const cv = document.createElement("canvas"); cv.width = 400; cv.height = 225;
+      pipVid = document.createElement("video"); pipVid.muted = true; pipVid.playsInline = true; pipVid.srcObject = cv.captureStream(4);
+      const draw = () => {
+        const g = cv.getContext("2d"), on = running || RB.on, st = RB.on ? RB.st : null;
+        g.fillStyle = on ? "#064e3b" : "#1e293b"; g.fillRect(0, 0, 400, 225);
+        g.fillStyle = "#fff"; g.font = "bold 26px system-ui"; g.fillText("🤖 Digit Bot  " + (on ? "● LIVE" : "■ stopped"), 16, 40);
+        g.font = "bold 64px ui-monospace,monospace"; g.fillText(digits.length ? String(digits[digits.length - 1]) : "–", 16, 120);
+        g.font = "22px system-ui"; g.fillStyle = "#cbd5e1"; g.fillText(digits.slice(-12).join(" "), 90, 112);
+        const pl = st ? st.pl : (startBal != null && balance() != null && running ? balance() - startBal : null);
+        g.fillStyle = pl == null ? "#e2e8f0" : pl >= 0 ? "#86efac" : "#fca5a5"; g.font = "bold 28px system-ui";
+        g.fillText(pl == null ? "" : `P/L ${pl >= 0 ? "+" : "-"}$${Math.abs(pl).toFixed(2)}`, 16, 170);
+        g.fillStyle = "#e2e8f0"; g.font = "22px system-ui";
+        g.fillText(`trades ${st ? st.n : trades}${st ? "  next $" + (+(st.next ?? st.stake)).toFixed(2) : ""}${isDemo() ? "  DEMO" : "  REAL"}`, 16, 208);
+      };
+      draw(); pipVid._t = setInterval(draw, 500);
+      await pipVid.play(); await pipVid.requestPictureInPicture();
+      if (navigator.mediaSession) {
+        navigator.mediaSession.metadata = new MediaMetadata({ title: "Digit Bot", artist: "⏸ = stop the bot" });
+        const stopAll = () => { if (RB.on) rbStop("stopped from the floating window"); if (running) stop("stopped from the floating window"); draw(); };
+        try { navigator.mediaSession.setActionHandler("pause", () => { stopAll(); pipVid.play(); }); } catch (e) {}
+        try { navigator.mediaSession.setActionHandler("play", () => pipVid.play()); } catch (e) {}
+      }
+      pipVid.addEventListener("leavepictureinpicture", () => { clearInterval(pipVid._t); pipVid = null; log("status window closed"); });
+      log("⧉ status window floats over other apps (⏸ in it stops the bot). Start and settings stay in the panel.", "ok");
+    } catch (e) {
+      pipVid = null;
+      log("This browser can't float windows over other apps (" + (e.message || e) + "). Chrome on Android or Chrome/Edge on a PC can.", "warn");
+    }
+  }
+  function floatOff() {
+    if (pipWin) { pipWin.close(); return; }
+    if (pipVid && document.pictureInPictureElement) document.exitPictureInPicture().catch(() => {});
+  }
+  $("mdbFloat").onclick = floatOn;
 
   const logLines = [];
   function log(msg, cls) {
@@ -817,7 +908,8 @@
         log(`back after ${Math.round((Date.now() - hiddenAt) / 1000)} s - carrying on`, "ok");
       }
       hiddenAt = null;
-    } else if (running) { hiddenAt = Date.now(); log("page hidden - paused. The bot carries on when you come back.", "warn"); }
+    } else if ((running || RB.on) && pipActive()) { log("game page in the background - the bot carries on in the floating window (it stops itself if ticks stop)", "warn"); }
+    else if (running) { hiddenAt = Date.now(); log("page hidden - paused. The bot carries on when you come back.", "warn"); }
   });
   let actx = null;
   function audioUnlock() {   // phones only allow sound that was started by a tap: call this from Start
@@ -1363,7 +1455,7 @@
     el.innerHTML = RB.on ? `<b class="ok">RUNNING</b> ${BS.name} · trades ${st.n}/${BS.cur.maxTrades} · session <b class="${st.pl >= 0 ? "ok" : "warn"}">${st.pl >= 0 ? "+" : ""}$${(st.pl || 0).toFixed(2)}</b> · next stake $${(st.stake || 0).toFixed(2)} · last ${st.last || "–"}`
       : RB.st ? `Stopped. Last session: ${RB.st.n} trades, ${RB.st.pl >= 0 ? "+" : ""}$${RB.st.pl.toFixed(2)}.` : "Stopped."; }
   function rbTick(d) {
-    if (busy || document.hidden) return;
+    if (busy || (document.hidden && !pipActive())) return;
     const c = BS.cur, st = RB.st;
     if (waiting.length) return;                                   // each round waits for the last result
     const mine = H.filter(x => x.t >= RB.t0 && String(x.strat).startsWith("🧩") && (x.res === "win" || x.res === "loss"));
@@ -1413,7 +1505,7 @@
     digits.push(d); if (digits.length > 24) digits.shift();
     $("mdbDigits").textContent = digits.join(" ");
     if (RB.on) rbTick(d);
-    if (!running || finishing || document.hidden) return;
+    if (!running || finishing || (document.hidden && !pipActive())) return;
     run = triggerHit(d) ? run + 1 : 0;
     if (run < S.inRow) return;
     run = 0;
@@ -1509,7 +1601,7 @@
 
     if (!running) return;
     if (!demo && !S.allowReal) { stop("account switched to REAL"); return; }
-    if (document.hidden) { lastTickAt = Date.now(); return; }   // paused while you are in another app/tab
+    if (document.hidden && !pipActive()) { lastTickAt = Date.now(); return; }   // paused while you are in another app/tab (unless floating)
     if (Date.now() - lastTickAt > 15000) { stop("no new ticks for 15 s (chart frozen? refresh the page)"); return; }
     if (finishing) { if (done) stop(finishing); return; }
     if (trades >= S.maxTrades) finish("reached max trades");
