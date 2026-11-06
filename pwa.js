@@ -1,40 +1,64 @@
-/* DigitBot as an installed app: offline cache + "📲 Install app" button (Chrome/Edge/Samsung) or
-   "Add to Home Screen" steps (iPhone/iPad Safari). */
+/* DigitBot as an installed app: offline cache + "📲 Install app" button.
+   Chrome/Edge: the real install prompt when the browser offers it. Otherwise (Firefox, Samsung Internet, iPhone,
+   or Chrome before it is ready) the button shows the exact steps for that browser. */
 (function () {
   if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
   const standalone = matchMedia("(display-mode: standalone)").matches || matchMedia("(display-mode: window-controls-overlay)").matches || navigator.standalone === true;
-  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const ua = navigator.userAgent;
+  const ios = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const android = /Android/.test(ua), mobile = android || ios;
+  const browser = /SamsungBrowser/.test(ua) ? "samsung" : /Firefox|FxiOS/.test(ua) ? "firefox" : /Edg\//.test(ua) ? "edge"
+    : /OPR\/|Opera/.test(ua) ? "opera" : /FBAN|FBAV|Instagram|Line\/|wv\)/.test(ua) ? "inapp" : /CriOS/.test(ua) ? "chrome-ios"
+    : /Chrome/.test(ua) ? "chrome" : /Safari/.test(ua) ? "safari" : "other";
   let deferred = null;
-  window.dbInstall = { standalone, ios, can: () => !!deferred };
+
+  function steps() {
+    if (ios && browser !== "safari") return "On iPhone/iPad, open this page in <b>Safari</b>, tap <b>Share</b> (square with arrow), then <b>Add to Home Screen</b>.";
+    if (ios) return "Tap <b>Share</b> (square with arrow) at the bottom of Safari, scroll down, tap <b>Add to Home Screen</b>, then <b>Add</b>.";
+    if (browser === "inapp") return "You're in an app's built-in browser. Tap <b>⋮</b> / <b>…</b> and choose <b>Open in Chrome</b> (or your browser), then press Install again.";
+    if (browser === "samsung") return "Tap the menu <b>≡</b> at the bottom, then <b>Add page to</b> → <b>Home screen</b>.";
+    if (browser === "firefox" && android) return "Tap the menu <b>⋮</b>, then <b>Install</b> (or <b>Add to Home screen</b>), then <b>Add</b>.";
+    if (browser === "firefox") return "Firefox on a PC can't install web apps. Open this page in <b>Chrome</b> or <b>Edge</b> and press Install there (the MMG bot can stay in Firefox).";
+    if (mobile) return "Tap the menu <b>⋮</b> at the top right, then <b>Install app</b> or <b>Add to Home screen</b>, then <b>Install</b>.";
+    if (browser === "edge") return "Click the menu <b>…</b> at the top right → <b>Apps</b> → <b>Install this site as an app</b>.";
+    return "Click the install icon at the right end of the address bar (a screen with a ↓ arrow), or menu <b>⋮</b> → <b>Cast, save and share</b> → <b>Install page as app</b>.";
+  }
+  window.dbInstall = { standalone, ios, browser, can: () => !!deferred, steps };
 
   function setStatus(t) { document.querySelectorAll("[data-install-status]").forEach(e => e.innerHTML = t); }
   function show() {
     const box = document.querySelectorAll("[data-install-box]");
     if (standalone) { box.forEach(b => b.style.display = "none"); return; }
-    document.querySelectorAll("[data-install]").forEach(b => b.style.display = (deferred || ios) ? "" : "none");
-    if (ios) setStatus("On iPhone/iPad: tap <b>Share</b> <span style='font-size:1.1em'>⎋</span> at the bottom of Safari, then <b>Add to Home Screen</b>.");
-    else if (!deferred) setStatus("Chrome / Edge: open the browser menu <b>⋮</b> and tap <b>Install app</b> or <b>Add to Home screen</b>. "
-      + "(If the button doesn't show, the app may already be installed - look for the DigitBot icon.)");
-    else setStatus("Tap the button - DigitBot gets its own icon and opens full screen like a normal app.");
-    // small pill on pages without the big box
-    if (!box.length && (deferred || ios) && localStorage.getItem("dbInstallHide") !== "1" && !document.getElementById("dbInstallPill")) {
+    document.querySelectorAll("[data-install]").forEach(b => b.style.display = "");
+    setStatus(deferred ? "Tap the button - DigitBot gets its own icon and opens full screen like a normal app." : steps());
+    if (!box.length && localStorage.getItem("dbInstallHide") !== "1" && !document.getElementById("dbInstallPill")) {
       const p = document.createElement("div"); p.id = "dbInstallPill";
       p.style.cssText = "position:fixed;left:10px;bottom:10px;z-index:99999;background:#0ea5b7;color:#fff;border-radius:999px;padding:8px 12px;font:600 14px system-ui;box-shadow:0 4px 14px rgba(0,0,0,.35);display:flex;gap:10px;align-items:center;cursor:pointer";
-      p.innerHTML = "<span data-install>📲 Install app</span><span title='hide' style='opacity:.8'>✕</span>";
+      p.innerHTML = "<span>📲 Install app</span><span title='hide' style='opacity:.8'>✕</span>";
       p.lastChild.onclick = ev => { ev.stopPropagation(); localStorage.setItem("dbInstallHide", "1"); p.remove(); };
       p.firstChild.onclick = install;
       document.body.appendChild(p);
     }
+  }
+  function sheet(html) {                       // steps pop-up for browsers without a direct install prompt
+    let d = document.getElementById("dbInstallSheet"); if (d) d.remove();
+    d = document.createElement("div"); d.id = "dbInstallSheet";
+    d.style.cssText = "position:fixed;inset:0;z-index:100000;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;justify-content:center";
+    d.innerHTML = "<div style='background:#1e293b;color:#e2e8f0;border:1px solid #0ea5b7;border-radius:16px 16px 0 0;max-width:520px;width:100%;padding:18px 18px calc(18px + env(safe-area-inset-bottom));font:16px/1.5 system-ui'>"
+      + "<div style='display:flex;gap:12px;align-items:center;margin-bottom:8px'><img src='icons/icon-192.png' width='44' height='44' style='border-radius:10px'><b style='color:#fff;font-size:1.15rem'>Install DigitBot</b></div>"
+      + "<div>" + html + "</div><div style='color:#94a3b8;font-size:.85rem;margin-top:8px'>Then open DigitBot from your home screen / start menu.</div>"
+      + "<button style='margin-top:14px;width:100%;min-height:46px;border:0;border-radius:12px;background:#0ea5b7;color:#fff;font:700 1rem system-ui'>OK</button></div>";
+    d.onclick = e => { if (e.target === d || e.target.tagName === "BUTTON") d.remove(); };
+    document.body.appendChild(d);
   }
   async function install() {
     if (deferred) {
       deferred.prompt();
       const r = await deferred.userChoice.catch(() => ({}));
       deferred = null;
-      setStatus(r.outcome === "accepted" ? "✅ Installed - open DigitBot from your home screen / start menu." : "Not installed. You can try again any time.");
-      document.querySelectorAll("[data-install]").forEach(b => b.style.display = "none");
-      const p = document.getElementById("dbInstallPill"); if (p) p.remove();
-    } else if (ios) alert("On iPhone/iPad: tap the Share button at the bottom of Safari, scroll down and tap \"Add to Home Screen\".");
+      setStatus(r.outcome === "accepted" ? "✅ Installed - open DigitBot from your home screen / start menu." : steps());
+      if (r.outcome === "accepted") { const p = document.getElementById("dbInstallPill"); if (p) p.remove(); }
+    } else sheet(steps());
   }
   window.dbInstall.install = install;
   addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferred = e; show(); });
