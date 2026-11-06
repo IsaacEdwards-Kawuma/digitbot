@@ -104,6 +104,15 @@
   .inds label { flex-direction: row; align-items: center; gap: 4px; font-size: 12px; color: var(--tx); }
   .inds input { width: 15px; height: 15px; }
   .pc { background: #052e1c; border: 1px solid #15803d; color: #86efac; border-radius: 8px; padding: 3px 8px; font-weight: 700; font-size: 12px; }
+
+  .idea { border: 1px solid #334155; border-radius: 12px; padding: 10px 12px; margin-top: 8px; background: #0f172a; }
+  .idea.won { border-color: #16a34a; } .idea.lost { border-color: #b91c1c; opacity: .85; } .idea.expired { opacity: .6; }
+  .idea .hd { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-weight: 600; }
+  .idea .lv { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 4px 12px; margin: 6px 0; font-size: 14px; }
+  .idea .lv b { font-size: 15px; } .idea .bt { font-size: 13px; color: #94a3b8; } .idea .why { font-size: 12.5px; color: #94a3b8; margin-top: 3px; }
+  .idea .act { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; } .idea .act button { padding: 6px 10px; }
+  .tag.open { background: #334155; } .tag.won { background: #16a34a; } .tag.lost { background: #b91c1c; } .tag.expired { background: #475569; }
+  .fdck { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -151,7 +160,7 @@
   <div class="note" id="live">connecting to the live feed…</div>
 
   <div class="tabs">
-    <button data-t="sig" class="on">📈 Signals</button><button data-t="mk">🔥 Market</button><button data-t="bt">🧪 Backtest</button><button data-t="sb">🛠️ My strategies</button>
+    <button data-t="sig" class="on">📈 Signals</button><button data-t="mk">🔥 Market</button><button data-t="fd">📡 Finder</button><button data-t="bt">🧪 Backtest</button><button data-t="sb">🛠️ My strategies</button>
     <button data-t="pt">🤖 Practice trading</button><button data-t="live" id="tabLive" class="hide">⚡ Live trading (PC)</button><button data-t="st">🖱️ Screen Trader</button><button data-t="help">❓ Help</button>
   </div>
 
@@ -286,6 +295,44 @@
       <div class="scroll"><table id="scTable"></table></div></div>
     <div class="box" style="margin-top:10px"><h3 id="newsTitle">📰 News</h3><div id="news" class="mut">loading…</div>
       <div class="note">Headlines from the web (CoinDesk for crypto, FXStreet for forex and commodities). News can move prices fast: be careful around big announcements.</div></div>
+  </div>
+  <!-- ===================== 📡 Trade finder -->
+  <div class="pane hide" id="t_fd">
+    <div class="box"><h3>📡 Trade finder: which market to trade now, with entry, stop-loss and take-profit</h3>
+      <div class="row">
+        <label style="flex-direction:row;align-items:center;gap:6px;color:var(--tx)"><input type="checkbox" id="fdOn"> <b>Auto-scan and notify me</b></label>
+        <label>Every<select id="fdEvery"><option value="5">5 min</option><option value="15">15 min</option><option value="30">30 min</option><option value="60">1 hour</option></select></label>
+        <button class="pri" id="fdNow">🔎 Scan now</button><span class="note" id="fdState" style="margin:0"></span>
+      </div>
+      <details id="fdSet"><summary style="cursor:pointer;font-weight:600;margin:6px 0">⚙️ Set what to look for</summary>
+        <div class="row">
+          <label>Crypto<select id="fdCrypto"><option value="0">none</option><option value="fav">my favourites</option><option value="10">top 10 by volume</option><option value="20">top 20 by volume</option><option value="40">top 40 by volume</option></select></label>
+          <label>Forex &amp; metals<select id="fdFx"><option value="0">none</option><option value="fav">my favourites</option><option value="all">all forex + metals + oil</option></select></label>
+          <label>Also these coins<input id="fdExtra" placeholder="e.g. PEPEUSDT, WIFUSDT" style="width:180px"></label>
+        </div>
+        <div class="row"><span class="mut">Timeframes:</span><span id="fdTfs"></span></div>
+        <div class="row"><span class="mut">Strategies:</span><span id="fdStrats" style="display:flex;flex-wrap:wrap;gap:4px 12px"></span></div>
+        <div class="row">
+          <label>Show<select id="fdQual"><option value="pass">only PASS backtests (safest)</option><option value="pf">profit factor ≥ 1.1 on that market</option><option value="all">every signal (most ideas, least tested)</option></select></label>
+          <label>Direction<select id="fdDir"><option value="both">buy and sell</option><option value="buy">buy only (no shorting)</option></select></label>
+          <label>Trend<select id="fdTrend"><option value="1">only trade with the trend</option><option value="0">any</option></select></label>
+        </div>
+        <div class="row">
+          <label>Stop-loss (× ATR)<input type="number" id="fdSl" min="0.5" max="5" step="0.1" style="width:80px"></label>
+          <label>Take-profit (reward : risk)<input type="number" id="fdRr" min="0.5" max="6" step="0.1" style="width:80px"></label>
+          <label>My account $<input type="number" id="fdBal" min="10" step="10" style="width:110px"></label>
+          <label>Risk per trade %<input type="number" id="fdRisk" min="0.1" max="5" step="0.1" style="width:80px"></label>
+          <label>Notify me about<select id="fdMax"><option value="1">the best idea</option><option value="3">the best 3</option><option value="10">every new idea</option></select></label>
+        </div>
+      </details>
+      <div id="fdList"></div>
+      <h3 style="margin-top:14px">📊 How the finder's ideas worked out</h3><div id="fdScore" class="mut">No ideas checked yet.</div>
+      <div class="note">How it works: on each closed candle it checks your strategies on every chosen market, backtests the strategy on that market
+        (older 70% + newest 30% of 1000 candles) and gives you the trade with a stop-loss and take-profit. It then watches each idea and records
+        whether the take-profit or the stop-loss was hit first, so you can see if it is worth following. It scans while this page
+        (or the DigitBot app) is open. <b>Ideas are not advice and not a promise:</b> backtests can fail on new data. Try them on the practice account first and keep the risk small.</div>
+      <div class="row"><button id="fdClear">🗑 Clear ideas and score</button></div>
+    </div>
   </div>
   <!-- ===================== Strategy builder -->
   <div class="pane hide" id="t_sb">

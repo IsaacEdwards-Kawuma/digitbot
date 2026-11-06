@@ -2,7 +2,7 @@
    Pages and scripts: network first (you always get the newest version), the saved copy when offline.
    Icons and the chart library: saved copy first.
    Not touched: prices/news from other sites, the .user.js installers (Tampermonkey must see them fresh), videos. */
-const V = "digitbot-v3";
+const V = "digitbot-v4";
 const CORE = ["./", "index.html", "trade.html", "trade.js", "engine.js", "lightweight-charts.js", "mmg.html", "screen.html",
   "tutorials.html", "settings.html", "pwa.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/apple-touch-icon.png"];
 

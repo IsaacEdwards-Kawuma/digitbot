@@ -413,7 +413,8 @@
   // ---------------------------------------------------------------- UI wiring
   function showTab(t) {
     document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
-    ["sig", "mk", "bt", "sb", "pt", "live", "st", "help"].forEach(k => $("t_" + k).classList.toggle("hide", k !== t));
+    ["sig", "mk", "fd", "bt", "sb", "pt", "live", "st", "help"].forEach(k => $("t_" + k).classList.toggle("hide", k !== t));
+    if (t === "fd") { fdForm(); fdRender(); }
     if (t === "live" && B) draw();
     if (t === "bt" && !$("btTable").innerHTML) runBacktest();
     if (t === "mk") marketTab(true);
@@ -1154,7 +1155,174 @@
   };
   loadEditor(null); renderSbList(); refreshStrats();
 
+
+  // ================================================================ 📡 TRADE FINDER
+  // Scans the markets you choose on each closed candle, keeps the signals whose strategy backtests well on that market,
+  // notifies you with entry / stop-loss / take-profit / size, and keeps an honest score of how its ideas turned out.
+  const FD_DEF = { on: false, every: 15, crypto: "20", fx: "all", extra: "", tfs: ["1h", "4h"], strats: null, qual: "pass", dir: "both", trend: "1",
+                   sl: null, rr: null, bal: null, risk: null, max: "3" };
+  let FD = Object.assign({}, FD_DEF); try { Object.assign(FD, JSON.parse(localStorage.getItem("dbFinder") || "{}")); } catch (e) {}
+  let ideas = []; try { ideas = JSON.parse(localStorage.getItem("dbIdeas") || "[]"); } catch (e) {}
+  const saveFD = () => localStorage.setItem("dbFinder", JSON.stringify(FD));
+  const saveIdeas = () => { ideas = ideas.slice(-150); localStorage.setItem("dbIdeas", JSON.stringify(ideas)); };
+  let fdBusy = false, fdNext = 0, fdTicker = null, fdTickerAt = 0;
+  const FD_TFS = ["15m", "1h", "4h", "1d"];
+  const fdName = (sym, md) => { const l = label(sym); return l === sym ? sym.replace(/USDT$/, "") + "/USDT" : l; };
+  function fdForm() {
+    const strats = FD.strats || Object.keys(E.STRATEGIES);
+    $("fdOn").checked = FD.on; $("fdEvery").value = FD.every; $("fdCrypto").value = FD.crypto; $("fdFx").value = FD.fx; $("fdExtra").value = FD.extra;
+    $("fdQual").value = FD.qual; $("fdDir").value = FD.dir; $("fdTrend").value = FD.trend; $("fdMax").value = FD.max;
+    $("fdSl").value = FD.sl ?? SET.slAtr; $("fdRr").value = FD.rr ?? SET.rr; $("fdBal").value = FD.bal ?? (acct ? Math.round(acct.bal) : SET.start); $("fdRisk").value = FD.risk ?? SET.risk;
+    $("fdTfs").innerHTML = FD_TFS.map(t => `<label class="fdck"><input type="checkbox" data-tf="${t}" ${FD.tfs.includes(t) ? "checked" : ""}>${t}</label>`).join("");
+    $("fdStrats").innerHTML = Object.entries(E.STRATEGIES).map(([k, s]) => `<label class="fdck"><input type="checkbox" data-st="${k}" ${strats.includes(k) ? "checked" : ""}>${s.name}</label>`).join("");
+    fdStateText();
+  }
+  function fdRead() {
+    const num = (id, lo, hi) => { const v = +$(id).value; return isNaN(v) ? null : Math.max(lo, Math.min(hi, v)); };
+    Object.assign(FD, { on: $("fdOn").checked, every: +$("fdEvery").value, crypto: $("fdCrypto").value, fx: $("fdFx").value, extra: $("fdExtra").value.trim(),
+      qual: $("fdQual").value, dir: $("fdDir").value, trend: $("fdTrend").value, max: $("fdMax").value,
+      sl: num("fdSl", 0.5, 5), rr: num("fdRr", 0.5, 6), bal: num("fdBal", 10, 1e9), risk: num("fdRisk", 0.1, 5),
+      tfs: [...$("fdTfs").querySelectorAll("input:checked")].map(x => x.dataset.tf),
+      strats: [...$("fdStrats").querySelectorAll("input:checked")].map(x => x.dataset.st) });
+    if (!FD.tfs.length) FD.tfs = ["1h"];
+    saveFD();
+  }
+  let fdLast = "";
+  function fdStateText(extra) {
+    extra = extra || fdLast;
+    const n = ideas.filter(x => x.status === "open").length;
+    $("fdState").textContent = (extra ? extra + " · " : "") + (FD.on ? `auto-scan ON every ${FD.every} min` + (fdNext ? `, next ${new Date(fdNext).toTimeString().slice(0, 5)}` : "") : "auto-scan off") + ` · ${n} open idea${n === 1 ? "" : "s"}`;
+  }
+  async function fdTargets() {
+    const out = [], add = (sym, md, src) => { if (sym && !out.some(o => o.sym === sym)) out.push({ sym, md, src }); };
+    if (FD.crypto === "fav") favs.filter(f => f.mode === "crypto" && !f.mt5).forEach(f => add(f.sym, "crypto", f.fut ? "fut" : "spot"));
+    else if (+FD.crypto > 0) {
+      if (!fdTicker || Date.now() - fdTickerAt > 10 * 60e3) { fdTicker = await (await fetch(DATA + "ticker/24hr")).json(); fdTickerAt = Date.now(); }
+      fdTicker.filter(x => /USDT$/.test(x.symbol) && !STABLE.test(x.symbol) && !/(UP|DOWN)USDT$/.test(x.symbol) && +x.count > 0)
+        .sort((a, b) => +b.quoteVolume - +a.quoteVolume).slice(0, +FD.crypto).forEach(x => add(x.symbol, "crypto", "spot"));
+    }
+    const fxSrc = s => ((MARKETS.forex.find(m => m[0] === s) || [])[3] === "fut" ? "fut" : "spot");
+    if (FD.fx === "fav") favs.filter(f => f.mode === "forex" && !f.mt5).forEach(f => add(f.sym, "forex", fxSrc(f.sym)));
+    else if (FD.fx === "all") MARKETS.forex.forEach(m => add(m[0], "forex", fxSrc(m[0])));
+    FD.extra.toUpperCase().split(/[\s,;]+/).filter(Boolean).forEach(s => add(/USDT$/.test(s) ? s : s + "USDT", "crypto", "spot"));
+    return out;
+  }
+  // did the take-profit or the stop-loss come first? (same rule as the backtest: stop first if both in one candle)
+  function fdOutcomes(sym, tf, b, ci) {
+    let changed = false;
+    ideas.filter(x => x.status === "open" && x.sym === sym && x.tf === tf).forEach(x => {
+      for (let j = 0; j <= ci; j++) {
+        if (b.t[j] <= x.t) continue;
+        const buy = x.side === "buy", hitSl = buy ? b.l[j] <= x.sl : b.h[j] >= x.sl, hitTp = buy ? b.h[j] >= x.tp : b.l[j] <= x.tp;
+        if (hitSl || hitTp) { x.status = hitSl ? "lost" : "won"; x.exitAt = b.t[j] + TF_MS[tf]; changed = true; break; }
+      }
+      if (x.status === "open" && (b.t[ci] - x.t) / TF_MS[tf] > 120) { x.status = "expired"; changed = true; }
+    });
+    return changed;
+  }
+  async function fdScan(manual) {
+    if (fdBusy) return; fdBusy = true; fdRead();
+    const t0 = Date.now(), found = [];
+    try {
+      const targets = await fdTargets(), strats = (FD.strats || Object.keys(E.STRATEGIES)).filter(k => E.STRATEGIES[k]);
+      if (!targets.length) { fdStateText("no markets chosen - pick some under ⚙️"); return; }
+      const p = { sl_atr: FD.sl || SET.slAtr, rr: FD.rr || SET.rr, breakeven_r: +SET.be || 0, longOnly: FD.dir === "buy" };
+      let k = 0;
+      for (const tg of targets) for (const tf of FD.tfs) {
+        k++; fdStateText(`scanning ${k}/${targets.length * FD.tfs.length}: ${fdName(tg.sym)} ${tf}`);
+        try {
+          const r = await fetch(`${tg.src === "fut" ? "https://fapi.binance.com/fapi/v1/" : DATA}klines?symbol=${tg.sym}&interval=${tf}&limit=1000`);
+          if (!r.ok) continue;
+          const kl = (await r.json()).map(x => ({ t: x[0], o: +x[1], h: +x[2], l: +x[3], c: +x[4], v: +x[5] }));
+          if (kl.length < 300) continue;
+          const b = E.addAll(kl); let ci = b.n - 1; while (ci > 0 && b.t[ci] + TF_MS[tf] > Date.now()) ci--;
+          fdOutcomes(tg.sym, tf, b, ci);
+          const sig = strats.map(nm => [nm, E.signalAt(b, nm, ci, p)]).filter(x => x[1]);
+          if (!sig.length) continue;
+          const bt = E.backtestAll(b, p, b.c[b.n - 1] * (tg.md === "crypto" ? 0.002 : 0.0004), 1), mv = E.marketView(b);
+          for (const [nm, sg] of sig) {
+            const r2 = bt.find(x => x.name === nm), te = r2 && r2.test, pf = te && te.trades ? te.profit_factor : 0;
+            if (FD.qual === "pass" && !(r2 && r2.pass)) continue;
+            if (FD.qual === "pf" && !(pf >= 1.1 && te.trades >= 10)) continue;
+            if (FD.trend === "1" && (sg.side === "buy" ? mv.score < 0 : mv.score > 0)) continue;
+            const key = `${tg.sym}|${tf}|${nm}|${b.t[ci]}`;
+            if (ideas.some(x => x.key === key)) continue;
+            const now = b.c[b.n - 1], shift = now - b.c[ci], sl = sg.sl + shift, tp = sg.tp + shift;
+            if (sg.side === "buy" ? !(now > sl && now < tp) : !(now < sl && now > tp)) continue;     // price already ran past a level
+            const x = { key, sym: tg.sym, md: tg.md, src: tg.src, tf, strat: nm, sname: E.STRATEGIES[nm].name, side: sg.side, entry: now, sl, tp, t: b.t[ci],
+              at: Date.now(), why: sg.why, status: "open", bias: mv.score,
+              bt: { pass: !!(r2 && r2.pass), pf, wr: te && te.trades ? te.win_rate : 0, n: te ? te.trades || 0 : 0, ret: te && te.trades ? te.return_pct : 0, trainPf: r2 && r2.train.trades ? r2.train.profit_factor : 0 } };
+            x.score = (x.bt.pass ? 2 : 0) + Math.min(pf, 3) + x.bt.wr / 100 + Math.min(1, Math.abs(mv.score) / 60);
+            ideas.push(x); found.push(x);
+          }
+        } catch (e) {}
+        await new Promise(res => setTimeout(res, 30));
+      }
+      saveIdeas();
+      found.sort((a, b) => b.score - a.score);
+      found.slice(0, +FD.max).forEach(x => notify(`${x.side.toUpperCase()} ${fdName(x.sym)} (${x.tf})`,
+        `entry ≈ ${fmt(x.entry)} · stop-loss ${fmt(x.sl)} (${fdPct(x, x.sl)}) · take-profit ${fmt(x.tp)} (${fdPct(x, x.tp)}) · R:R 1:${fdRR(x)} · ${x.sname}, backtest ${x.bt.pass ? "PASS" : "not passed"} PF ${x.bt.pf ? Math.min(x.bt.pf, 99).toFixed(2) : "–"}`));
+      if (found.length > +FD.max) notify("Trade finder", `${found.length - +FD.max} more idea(s) in the 📡 Finder tab`);
+      log(`📡 finder: ${found.length} new idea(s) from ${targets.length} markets × ${FD.tfs.join("/")} in ${Math.round((Date.now() - t0) / 1000)} s`);
+      fdLast = `last scan ${new Date().toTimeString().slice(0, 5)}: ${found.length} new`; fdStateText();
+    } catch (e) { fdStateText("scan failed: " + (e.message || e)); }
+    finally { fdBusy = false; fdRender(); }
+  }
+  const fdPct = (x, lv) => { const v = (lv - x.entry) / x.entry * 100; return (v >= 0 ? "+" : "") + v.toFixed(2) + "%"; };
+  const fdRR = x => (Math.abs(x.tp - x.entry) / Math.abs(x.entry - x.sl)).toFixed(1);
+  function fdSize(x) {
+    const bal = FD.bal || SET.start, riskAmt = bal * (FD.risk || SET.risk) / 100, per = Math.abs(x.entry - x.sl);
+    const qty = riskAmt / per, val = qty * x.entry, unit = x.md === "crypto" ? x.sym.replace(/USDT$/, "") : "units";
+    return `risk ${money(riskAmt)} (${FD.risk || SET.risk}% of ${money(bal)}) → ${x.side === "buy" ? "buy" : "sell"} ${qty < 1 ? qty.toPrecision(3) : qty.toFixed(qty < 100 ? 2 : 0)} ${unit} ≈ ${money(val)}`
+      + (val > bal ? ` <span class="dn">(needs ${(val / bal).toFixed(1)}× leverage - use a smaller risk or skip)</span>` : "");
+  }
+  function fdRender() {
+    const fresh = x => Date.now() - (x.t + TF_MS[x.tf]) < 2 * TF_MS[x.tf];
+    const list = ideas.slice().sort((a, b) => (a.status === "open" ? 0 : 1) - (b.status === "open" ? 0 : 1) || b.at - a.at).slice(0, 40);
+    $("fdList").innerHTML = list.length ? list.map((x, i) => `<div class="idea ${x.status}">
+      <div class="hd"><span class="tag ${x.side}">${x.side.toUpperCase()}</span><span>${fdName(x.sym)}</span><span class="mut">${x.tf} · ${x.sname}</span>
+        <span class="tag ${x.status}">${{ open: fresh(x) ? "🟢 new" : "open", won: "✅ hit take-profit", lost: "❌ hit stop-loss", expired: "expired" }[x.status]}</span>
+        <span class="mut" style="margin-left:auto;font-weight:400">${new Date(x.at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span></div>
+      <div class="lv"><span>Entry ≈ <b>${fmt(x.entry)}</b></span><span>Stop-loss <b class="dn">${fmt(x.sl)}</b> (${fdPct(x, x.sl)})</span>
+        <span>Take-profit <b class="up">${fmt(x.tp)}</b> (${fdPct(x, x.tp)})</span><span>Reward : risk <b>${fdRR(x)} : 1</b></span></div>
+      <div class="bt">${fdSize(x)}</div>
+      <div class="bt">Backtest on this market: <span class="tag ${x.bt.pass ? "pass" : "fail"}">${x.bt.pass ? "PASS" : "not passed"}</span>
+        win ${x.bt.wr.toFixed(0)}% · profit factor ${x.bt.pf ? Math.min(x.bt.pf, 99).toFixed(2) : "–"} · ${x.bt.n} trades · ${x.bt.ret >= 0 ? "+" : ""}${x.bt.ret.toFixed(1)}% (newest 30%) ·
+        trend ${x.bias >= 25 ? "bullish" : x.bias <= -25 ? "bearish" : "neutral"} (${x.bias > 0 ? "+" : ""}${x.bias})</div>
+      <div class="why">Why: ${x.why}</div>
+      <div class="act"><button data-fdo="${x.key}">📈 Open chart</button><button data-fdp="${x.key}">🤖 Practise it</button><button data-fdx="${x.key}" title="remove">✕</button></div></div>`).join("")
+      : `<div class="mut" style="margin-top:8px">No ideas yet. Press 🔎 Scan now, or turn on auto-scan. Choose markets, timeframes and strategies under ⚙️.</div>`;
+    const done = ideas.filter(x => x.status === "won" || x.status === "lost"), won = done.filter(x => x.status === "won");
+    const R = done.reduce((a, x) => a + (x.status === "won" ? +fdRR(x) : -1), 0);
+    $("fdScore").innerHTML = done.length ? `<b>${won.length} won</b> · <b>${done.length - won.length} lost</b> · ${ideas.filter(x => x.status === "open").length} still open ·
+      win rate ${(100 * won.length / done.length).toFixed(0)}% · total <b class="${R >= 0 ? "up" : "dn"}">${R >= 0 ? "+" : ""}${R.toFixed(1)} R</b>
+      (1 R = the amount you risk per trade; at ${FD.risk || SET.risk}% risk that's ${R >= 0 ? "+" : ""}${(R * (FD.risk || SET.risk)).toFixed(1)}% of the account).
+      ${done.length < 30 ? " <span class='mut'>Fewer than 30 finished ideas - too early to judge.</span>" : ""}`
+      : `${ideas.length ? ideas.filter(x => x.status === "open").length + " idea(s) still open, none finished yet." : "No ideas checked yet."}`;
+    fdStateText();
+  }
+  function fdOpen(x, practise) {
+    const go = () => { if ($("tf").value !== x.tf) { $("tf").value = x.tf; $("tf").onchange(); } if (practise) showTab("pt");
+      log(`📡 idea: ${x.side.toUpperCase()} ${fdName(x.sym)} ${x.tf} · entry ≈ ${fmt(x.entry)} · stop-loss ${fmt(x.sl)} · take-profit ${fmt(x.tp)}` + (practise ? " - press Buy/Sell in Practice trading" : "")); };
+    const where = x.md === "crypto" ? (x.src === "fut" ? "Crypto · futures only" : "Crypto") : "Forex";
+    if (x.md === mode && $("sym").value === x.sym) go();
+    else { openMarket({ sym: x.sym, name: fdName(x.sym), mode: x.md, where, futOnly: x.md === "crypto" && x.src === "fut" }); setTimeout(go, 1500); }
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  $("fdList").onclick = e => {
+    const b = e.target.closest("button"); if (!b) return; const key = b.dataset.fdo || b.dataset.fdp || b.dataset.fdx, x = ideas.find(i => i.key === key); if (!x) return;
+    if (b.dataset.fdx) { ideas = ideas.filter(i => i !== x); saveIdeas(); fdRender(); } else fdOpen(x, !!b.dataset.fdp);
+  };
+  $("t_fd").addEventListener("change", e => { if (e.target.closest("#fdSet") || e.target.id === "fdOn" || e.target.id === "fdEvery") { fdRead(); fdNext = FD.on ? Math.min(fdNext || Infinity, Date.now() + 3000) : 0; fdRender(); } });
+  $("fdNow").onclick = () => fdScan(true);
+  $("fdClear").onclick = () => { if (confirm("Delete all ideas and the score?")) { ideas = []; saveIdeas(); fdRender(); } };
+  setInterval(() => {
+    if (!FD.on || fdBusy) return;
+    if (!fdNext) fdNext = Date.now() + 3000;
+    if (Date.now() >= fdNext) { fdNext = Date.now() + FD.every * 60e3; fdScan(false); }
+  }, 5000);
+  fdForm(); fdRender();
   buildChart();
   setMode();
-  window.__trade = { get B() { return B; }, get acct() { return acct; }, get favs() { return favs; }, get drawings() { return drawings; }, chartClick, setTool, marketTab, testStrat, runBacktest, openTrade, managePositions, lastPrice, closedIdx, onNewBar, setAuto: a => { auto = a; } };
+  window.__trade = { fdScan, get ideas() { return ideas; }, get B() { return B; }, get acct() { return acct; }, get favs() { return favs; }, get drawings() { return drawings; }, chartClick, setTool, marketTab, testStrat, runBacktest, openTrade, managePositions, lastPrice, closedIdx, onNewBar, setAuto: a => { auto = a; } };
 })();
