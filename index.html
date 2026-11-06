@@ -3,6 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0f172a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="DigitBot">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <title>DigitBot – welcome</title>
 <style>
   body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 0; background: #0f172a; color: #e2e8f0; line-height: 1.5; }
@@ -20,12 +28,29 @@
   .box { background: #1e293b; border: 1px solid #334155; border-radius: 14px; padding: 14px 16px; margin-top: 18px; color: #cbd5e1; font-size: .93rem; }
   .warn { border-color: #b45309; background: #292117; }
   a { color: #38bdf8; }
+  .app { border-color: #0ea5b7; background: #10263a; }
+  .app button { background: #0ea5b7; color: #fff; border: 0; border-radius: 12px; padding: 12px 18px; font: 700 1rem system-ui; cursor: pointer; min-height: 46px; }
+  .small { color: #94a3b8; font-size: .85rem; margin-top: 10px; }
+  @media (display-mode: standalone) { .wrap { padding-top: max(22px, env(safe-area-inset-top)); } }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>🤖 DigitBot</h1>
   <div class="sub">Choose what you want the bot to trade. Everything starts on DEMO / practice money.</div>
+
+  <div class="box app" style="margin:0 0 18px" data-install-box>
+    <div style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+      <img src="icons/icon-192.png" alt="" width="56" height="56" style="border-radius:14px">
+      <div style="flex:1;min-width:220px"><b style="color:#fff;font-size:1.1rem">📲 Install DigitBot as an app</b><br>
+        <span data-install-status>Chrome / Edge: open the browser menu <b>⋮</b> and tap <b>Install app</b> or <b>Add to Home screen</b>.</span></div>
+      <button data-install style="display:none">📲 Install app</button>
+    </div>
+    <div class="small">The app opens full screen with its own icon (phone home screen, PC start menu / taskbar) and keeps working offline for pages you've opened.
+      <b>Floating over other apps:</b> an installed web app can't do that on its own. Use ⧉ <b>Float</b> in the MMG bot
+      (PC Chrome/Edge: the whole bot in an always-on-top window; Android Chrome: a live status window over other apps).
+      The MMG bot itself still runs inside the MMG game page in your browser (it has to read that page).</div>
+  </div>
 
   <div class="grid">
     <a class="card" href="mmg.html">
@@ -72,5 +97,6 @@
     Forex and crypto strategies can be tested on history, but past results do not guarantee future ones, and most retail traders lose money.
     Start on DEMO, use stop-losses and loss limits, and never trade money you need.</div>
 </div>
+<script src="pwa.js"></script>
 </body>
 </html>
