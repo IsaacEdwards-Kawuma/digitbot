@@ -1,2 +1,6 @@
-{ "version": "2.1.0", "code": 3, "apk": "app/DigitBot.apk",
-  "notes": "Fixed: \"🎮 Open bot\" now opens the bot itself (full window: strategy, stake, limits, Start / Stop). Use the 🎯 Game / 🤖 Bot button at the top of the floating window to switch between the bot and the game." }
+{
+ "version": "2.2.0",
+ "code": 4,
+ "apk": "app/DigitBot.apk",
+ "notes": "New: 👁 Screen watcher (read-only, step 1). With MMG open in Chrome, the floating bot shows the digits, balance, DEMO/REAL and stats from your screen. Turn it on in ⚙️ Settings → Screen watcher. It only reads - it never taps. Use 📋 in the bubble card to save what it sees for the step-2 check."
+}
