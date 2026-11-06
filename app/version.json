@@ -1,6 +1,6 @@
 {
- "version": "2.2.0",
- "code": 4,
+ "version": "2.2.1",
+ "code": 5,
  "apk": "app/DigitBot.apk",
- "notes": "New: 👁 Screen watcher (read-only, step 1). With MMG open in Chrome, the floating bot shows the digits, balance, DEMO/REAL and stats from your screen. Turn it on in ⚙️ Settings → Screen watcher. It only reads - it never taps. Use 📋 in the bubble card to save what it sees for the step-2 check."
+ "notes": "The 👁 screen watcher now also works with MMG installed as an app from Chrome (\"MMG Trades\"), not just MMG in the browser. Still read-only: it watches, it never taps."
 }
