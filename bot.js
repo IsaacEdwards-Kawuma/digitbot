@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.17.0
+// @version      2.18.0
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -322,6 +322,10 @@
   /* ⧉ pop-out window (Picture-in-Picture): fill it */
   #mdb.pip{position:static!important;width:100%!important;max-width:none;height:100vh;border-radius:0;border:0;box-shadow:none;display:flex;flex-direction:column}
   #mdb.pip .bd,#mdb.pip .hp{max-height:none;flex:1} #mdb.pip .hd{cursor:default}
+  /* 🤖 app "bot view": the bot fills the whole window (DigitBot app's floating window) */
+  #mdb#mdb.appfull{position:fixed!important;left:0!important;top:0!important;right:0!important;bottom:0!important;width:100vw!important;max-width:none!important;
+   height:100vh!important;border-radius:0!important;border:0!important;display:flex!important;flex-direction:column;z-index:2147483647}
+  #mdb#mdb.appfull .bd{max-height:none!important;flex:1} #mdb#mdb.appfull .hp{max-height:none!important} #mdb.appfull .hd{cursor:default}
   #mdb.min{width:auto;border-radius:999px} #mdb.min .hd{padding:7px 12px;border-radius:999px}
   #mdb.min .hd b{flex:none} #mdb .hd #mdbBadge{font-size:12px;font-weight:600;white-space:nowrap}
   #mdb .tabs{display:flex;gap:6px;margin-bottom:8px}
@@ -760,6 +764,7 @@
   (() => {
     const hd = box.querySelector(".hd"); let sx, sy, ox, oy, drag = false, moved = false;
     hd.addEventListener("pointerdown", e => { if (e.target.tagName === "BUTTON") return;
+      if (box.classList.contains("appfull")) return;                       // app bot view: fixed
       if (box.classList.contains("phone") && !box.classList.contains("min")) { cycleSheet(); return; }   // phone sheet: tap = half / full / bar
       if (box.classList.contains("pip")) return;
       drag = true; moved = false; sx = e.clientX; sy = e.clientY;
@@ -1659,6 +1664,9 @@
   setInterval(loop, 100);
   window.__mmgDigitBot = {
     show: () => { box.style.display = ""; box.classList.remove("min"); }, start, stop,
+    // DigitBot app: "bot" = the bot fills the window, "game" = normal panel over the game
+    view(v) { box.style.display = ""; if (v === "bot") { setMin(false); box.classList.remove("shalf", "sbar"); box.classList.add("appfull", "sfull"); }
+      else { box.classList.remove("appfull"); applyLayout(); } return v; },
     // change settings from outside (used by tests / the desktop app); same effect as the panel
     configure(o) {
       if (running) return "running";

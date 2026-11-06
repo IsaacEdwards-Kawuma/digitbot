@@ -1,2 +1,2 @@
-{ "version": "2.0.0", "code": 2, "apk": "app/DigitBot.apk",
-  "notes": "New: the floating bot - a bubble over MMG and every app with Start / Stop, P/L and the latest message; the bot keeps playing while you use other apps. Accounts (each with its own MMG login and settings), fingerprint / face lock, a settings screen, trade and stop notifications, and updates inside the app." }
+{ "version": "2.1.0", "code": 3, "apk": "app/DigitBot.apk",
+  "notes": "Fixed: \"🎮 Open bot\" now opens the bot itself (full window: strategy, stake, limits, Start / Stop). Use the 🎯 Game / 🤖 Bot button at the top of the floating window to switch between the bot and the game." }
