@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.19.1
+// @version      2.19.2
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -1445,7 +1445,8 @@
       <select id="gd_days"><option value="7">last 7 days</option><option value="30">last 30 days</option><option value="0">all my history</option></select>
       <button class="clr" id="gdCoach">Analyse my trades</button><button class="clr" id="gdSendCoach">Send to Telegram</button></div>
     <div id="gdCoachOut"></div>`;
-  const gb = (id, v) => { const el = $(id); if (el.type === "checkbox") el.checked = !!v; else el.value = v ?? ""; };
+  const gb = (id, v) => { const el = $(id); if (el === document.activeElement) return;     // never wipe what you're typing
+    if (el.type === "checkbox") el.checked = !!v; else el.value = v ?? ""; };
   function guardRender() {
     if (!$("gdState")) return;
     gb("gd_cool", GS.cool.on); gb("gd_n", GS.cool.n); gb("gd_min", GS.cool.min);
@@ -1458,6 +1459,10 @@
         (T.on ? " · 📲 Telegram on" : "");
     $("gdOver").style.display = cool ? "" : "none";
   }
+  pG.addEventListener("input", e => {      // keep typed/pasted token + chat id right away (not only when you leave the box)
+    if (e.target.id === "gd_tok") { GS.tg.token = e.target.value.trim(); saveG(); }
+    if (e.target.id === "gd_chat") { GS.tg.chat = e.target.value.trim(); saveG(); }
+  });
   pG.addEventListener("change", () => {
     const num = (id, lo, hi, d) => { const v = parseInt($(id).value); return isNaN(v) ? d : Math.max(lo, Math.min(hi, v)); };
     GS.cool = { on: $("gd_cool").checked, n: num("gd_n", 2, 20, 4), min: num("gd_min", 5, 1440, 30) };
