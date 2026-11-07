@@ -1,6 +1,6 @@
 {
- "version": "2.3.1",
- "code": 7,
+ "version": "2.3.2",
+ "code": 8,
  "apk": "app/DigitBot.apk",
- "notes": "📋 Paste button for the Telegram token (fixes 'clipboard denied')"
+ "notes": "Fix: the Telegram token and chat id no longer disappear while you type or paste them. 📋 Paste button."
 }
