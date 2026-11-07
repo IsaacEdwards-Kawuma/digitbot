@@ -1560,6 +1560,17 @@
   $("gdOver").onclick = gdOverride;
   $("gdTest").onclick = async () => { const ok = await tgSend("✅ Test message - alerts from the Forex/Crypto page arrive here.\n" + gdStatusText(), true);
     alert(ok ? "Sent ✓ - check Telegram." : "Not sent: check the token and chat id (send your bot a message first)."); };
+  async function pasteInto(id, ask) {      // 📋 app clipboard -> browser clipboard -> a native text box
+    let t = "";
+    try { if (window.DigitBotAndroid && window.DigitBotAndroid.paste) t = window.DigitBotAndroid.paste() || ""; } catch (x) {}
+    if (!t) { try { t = await navigator.clipboard.readText(); } catch (x) {} }
+    if (!t) t = prompt(ask) || "";
+    t = t.trim();
+    if (t) { const el = document.getElementById(id); el.value = t; el.dispatchEvent(new Event("change", { bubbles: true })); }
+    return t;
+  }
+  $("gdPaste").onclick = async () => { const t = await pasteInto("gd_tok", "Long-press here, tap Paste, then OK:");
+    if (!t) alert("Nothing pasted - copy the token in @BotFather first."); };
   $("gdFind").onclick = async () => {
     const tok = $("gd_tok").value.trim(); if (!tok) return alert("Paste the bot token first.");
     try { const j = await (await fetch(`https://api.telegram.org/bot${tok}/getUpdates?offset=-10`)).json();

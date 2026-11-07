@@ -1,6 +1,7 @@
 {
  "version": "2.3.0",
- "code": 6,
+ "code": 7,
  "apk": "app/DigitBot.apk",
- "notes": "New: 🛡️ Guard in the MMG bot and on the Forex/Crypto page - cool-off after losing runs (ending it early needs your fingerprint), 📲 Telegram alerts and /stop /status /pause commands, 📓 coach, 📰 news pause, 🧪 paper-proof gate and the 🪜 grid bot."
+ "notes": "📋 Paste button for the Telegram token (fixes 'clipboard denied')",
+ "name": "2.3.1"
 }

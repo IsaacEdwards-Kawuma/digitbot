@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.19.0
+// @version      2.19.1
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -794,6 +794,15 @@
   //   While floating the bot keeps trading when the game page is in the background - if the site stops sending ticks
   //   there, the bot notices (no new ticks for 15 s) and stops itself.
   var pipWin = null, pipVid = null;
+  async function pasteInto(id, ask) {      // 📋 app clipboard -> browser clipboard -> a native text box
+    let t = "";
+    try { if (window.DigitBotAndroid && window.DigitBotAndroid.paste) t = window.DigitBotAndroid.paste() || ""; } catch (x) {}
+    if (!t) { try { t = await navigator.clipboard.readText(); } catch (x) {} }
+    if (!t) t = prompt(ask) || "";
+    t = t.trim();
+    if (t) { const el = document.getElementById(id); el.value = t; el.dispatchEvent(new Event("change", { bubbles: true })); }
+    return t;
+  }
   const APP = window.DigitBotAndroid || null;            // running inside the DigitBot Android app
   const appFloating = () => { try { return !!(APP && APP.isFloating()); } catch (e) { return false; } };
   const pipActive = () => !!pipWin || !!(pipVid && document.pictureInPictureElement === pipVid) || appFloating();
@@ -1424,7 +1433,7 @@
     <small>Covers Auto, Manual and 🧩 Rounds together, like the daily loss limit (set in 📊 Stats). The override needs you to type I AM CALM (and your fingerprint in the DigitBot app).</small>
     <h4>📲 Telegram alerts</h4>
     <div class="gr"><label class="ck"><input type="checkbox" id="gd_tgon"> Send alerts to Telegram</label></div>
-    <div class="gr"><input type="password" id="gd_tok" placeholder="bot token from @BotFather" autocomplete="off"></div>
+    <div class="gr"><input type="text" id="gd_tok" placeholder="bot token from @BotFather" autocomplete="off" autocapitalize="off" spellcheck="false" style="-webkit-text-security:disc"><button class="clr" id="gdPaste">📋 Paste</button></div>
     <div class="gr"><input type="text" id="gd_chat" placeholder="your chat id"><button class="clr" id="gdFind">Find my chat id</button><button class="clr" id="gdTest">Send test</button></div>
     <div class="gr"><label class="ck"><input type="checkbox" id="gd_start"> start</label><label class="ck"><input type="checkbox" id="gd_stops"> stops, limits, cool-off</label>
       <label class="ck"><input type="checkbox" id="gd_trades"> every trade</label><label class="ck"><input type="checkbox" id="gd_daily"> daily summary</label>
@@ -1457,6 +1466,8 @@
     saveG(); guardRender();
   });
   $("gdOver").onclick = guardOverride;
+  $("gdPaste").onclick = async () => { const t = await pasteInto("gd_tok", "Long-press here, tap Paste, then OK:");
+    log(t ? "📋 token pasted ✓ - now send your bot \"hi\" in Telegram and press Find my chat id" : "Nothing pasted - copy the token in @BotFather first.", t ? "ok" : "warn"); };
   $("gdTest").onclick = async () => { const ok = await tg("✅ Test message. Alerts from your Digit Bot will arrive here.\n" + statusText(), true);
     log(ok ? "📲 Telegram test sent ✓" : "📲 Telegram test failed - check the token and chat id (send your bot a message first)", ok ? "ok" : "warn"); };
   $("gdFind").onclick = async () => {
