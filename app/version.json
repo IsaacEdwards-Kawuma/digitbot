@@ -1,6 +1,6 @@
 {
- "version": "2.2.1",
- "code": 5,
+ "version": "2.3.0",
+ "code": 6,
  "apk": "app/DigitBot.apk",
- "notes": "The 👁 screen watcher now also works with MMG installed as an app from Chrome (\"MMG Trades\"), not just MMG in the browser. Still read-only: it watches, it never taps."
+ "notes": "New: 🛡️ Guard in the MMG bot and on the Forex/Crypto page - cool-off after losing runs (ending it early needs your fingerprint), 📲 Telegram alerts and /stop /status /pause commands, 📓 coach, 📰 news pause, 🧪 paper-proof gate and the 🪜 grid bot."
 }

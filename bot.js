@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         MMG Digit Bot
 // @namespace    digitbot.local
-// @version      2.18.0
+// @version      2.19.0
 // @description  Trades every mode on mmgpredictions.com (Match/Differ, Over/Under, Even/Odd, Rise/Fall). Sets the game up for you, follows your trigger, stop-loss and limits. Works on PC, Android and iPhone/iPad browsers.
 // @match        https://mmgpredictions.com/*
 // @match        https://www.mmgpredictions.com/*
@@ -326,6 +326,11 @@
   #mdb#mdb.appfull{position:fixed!important;left:0!important;top:0!important;right:0!important;bottom:0!important;width:100vw!important;max-width:none!important;
    height:100vh!important;border-radius:0!important;border:0!important;display:flex!important;flex-direction:column;z-index:2147483647}
   #mdb#mdb.appfull .bd{max-height:none!important;flex:1} #mdb#mdb.appfull .hp{max-height:none!important} #mdb.appfull .hd{cursor:default}
+  #mdb .gd h4{margin:10px 0 4px;font-size:13px} #mdb .gd .gst{padding:8px 10px;border-radius:10px;background:#f1f5f9;margin:6px 0;font-size:13px}
+  #mdb .gd .gst.cool{background:#fef3c7;border:1px solid #f59e0b} #mdb .gd .gst.ok{background:#dcfce7}
+  #mdb .gd .gr{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:4px 0} #mdb .gd .gr input[type=number]{width:64px}
+  #mdb .gd .gr input[type=text],#mdb .gd .gr input[type=password]{flex:1;min-width:120px} #mdb .gd .fd{margin:4px 0;padding:6px 8px;border-radius:8px;background:#f8fafc;font-size:12.5px}
+  #mdb .gd .fd.w{background:#fff7ed} #mdb .gd .fd.g{background:#f0fdf4} #mdb .gd small{color:#64748b}
   #mdb.min{width:auto;border-radius:999px} #mdb.min .hd{padding:7px 12px;border-radius:999px}
   #mdb.min .hd b{flex:none} #mdb .hd #mdbBadge{font-size:12px;font-weight:600;white-space:nowrap}
   #mdb .tabs{display:flex;gap:6px;margin-bottom:8px}
@@ -499,7 +504,7 @@
   box.innerHTML = `
   <div class="hd"><b>🤖 Digit Bot</b><span id="mdbBadge"></span><button id="mdbHome" title="Welcome: MMG, Forex or Crypto">🏠</button><button id="mdbHelp" title="Help: how the bot works">?</button><button id="mdbFloat" title="Float: keep the bot on top of other apps">⧉</button><button id="mdbMin">–</button><button id="mdbX">✕</button></div>
   <div class="bd">
-   <div class="tabs"><button id="tabAuto">⚡ Auto</button><button id="tabMan">✋ Manual</button><button id="tabBuild">🧩 Rounds</button><button id="tabStats">📊 Stats</button></div>
+   <div class="tabs"><button id="tabAuto">⚡ Auto</button><button id="tabMan">✋ Manual</button><button id="tabBuild">🧩 Rounds</button><button id="tabStats">📊 Stats</button><button id="tabGuard">🛡️ Guard</button></div>
    <div class="g" id="pAuto">
     <div class="tip">Auto trading: pick a strategy, press Start. The bot trades by itself until a limit stops it.</div>
     <div class="sec">Strategy</div>
@@ -680,7 +685,8 @@
   }
   refreshForm();
   function showTab() {
-    if (!["auto", "manual", "stats", "build"].includes(S.tab)) S.tab = "auto";
+    if (!["auto", "manual", "stats", "build", "guard"].includes(S.tab)) S.tab = "auto";
+    if ($("pGuard")) { $("pGuard").style.display = S.tab === "guard" ? "" : "none"; $("tabGuard").classList.toggle("on", S.tab === "guard"); if (S.tab === "guard") guardRender(); }
     if (S.tab === "auto" || S.tab === "manual") S.mode = S.tab;          // Start uses the last of Auto / Manual
     if ($("pBuild")) { $("pBuild").style.display = S.tab === "build" ? "" : "none"; $("tabBuild").classList.toggle("on", S.tab === "build"); }
     $("pAuto").style.display = S.tab === "auto" ? "" : "none";
@@ -694,6 +700,7 @@
   $("tabAuto").onclick = () => { S.tab = "auto"; save(); showTab(); };
   $("tabMan").onclick = () => { S.tab = "manual"; save(); showTab(); };
   $("tabStats").onclick = () => { S.tab = "stats"; save(); showTab(); };
+  $("tabGuard").onclick = () => { S.tab = "guard"; save(); showTab(); };
   $("tabBuild").onclick = () => { S.tab = "build"; save(); showTab(); };
   const UI_KEY = "mmgDigitBot.ui.v1";
   let UI = {}; try { UI = JSON.parse(localStorage.getItem(UI_KEY) || "{}"); } catch (e) {}
@@ -858,6 +865,7 @@
     const t = new Date().toTimeString().slice(0, 8);
     lastMsg = String(msg).replace(/<[^>]+>/g, "");
     try { if (window.DigitBotAndroid) window.DigitBotAndroid.event(cls || "", lastMsg); } catch (e) {}   // app notifications
+    try { guardLog(lastMsg, cls); } catch (e) {}                                                      // 🛡️ Telegram alerts
     logLines.push(`<div class="${cls || ""}">${t} ${msg}</div>`); if (logLines.length > 200) logLines.shift();
     const L = $("mdbLog"); L.innerHTML = logLines.join(""); L.scrollTop = L.scrollHeight;
   }
@@ -878,6 +886,7 @@
 
   async function start() {
     if (running || busy) return;
+    try { const g = guardBlock(); if (g) { log(g, "warn"); return; } } catch (e) {}       // 🛡️ cool-off first
     if (S.mode !== "manual" && !strategyById(S.strategy)) { log("Pick a strategy first (or use the Manual tab).", "warn"); return; }
     const demo = isDemo(), bal = balance();
     { const why = dayBlock(0); if (why) { log(why, "warn"); return; } }
@@ -1019,6 +1028,7 @@
       else { x.res = "loss"; x.profit = -x.stake; }
     }
     saveH(); renderStats();
+    try { guardAfter(grp); } catch (e) {}
   }
   function ledger(bal) {
     const open = openTrades();
@@ -1044,6 +1054,7 @@
   function dayLossNow() { return -Math.round(100 * today(accNow()).reduce((s, x) => s + (x.profit || 0), 0)) / 100; }   // whole cents
   // "" = OK to trade; otherwise why not. Counts open stakes as lost (pessimistic).
   function dayBlock(st) {
+    try { const g = guardBlock(); if (g) return g; } catch (e) {}
     if (!(S.dayLimit > 0)) return "";
     const lost = dayLossNow(), open = waiting.reduce((s, x) => s + x.stake, 0);
     if (lost >= S.dayLimit) return `daily loss limit reached: today ${money2(-lost)} (limit $${S.dayLimit}). Trading is blocked until tomorrow (or raise the limit in 📊 Stats).`;
@@ -1239,6 +1250,233 @@
     log(`test: ${pc(r.up)} of practice runs ended in profit, average ${m(r.avg)} per run`);
   };
 
+
+
+  // ================================================================== 🛡️ GUARD: risk guardian · Telegram · coach
+  // Cool-off: after N losses in a row every bot here (Auto, Manual, Rounds) stops and stays locked for M minutes.
+  // Telegram: alerts to your phone + commands (/stop /status /pause /resume). Coach: what in your own history costs money.
+  const GKEY = "mmgDigitBot.guard.v1";
+  const GS = Object.assign({ cool: { on: true, n: 4, min: 30 }, coolUntil: 0, coolFrom: 0, coolWhy: "",
+    tg: { token: "", chat: "", on: false, start: true, stops: true, trades: false, daily: true, weekly: true, cmds: true, lastId: -1 },
+    lastDaily: "", lastWeekly: "" }, (() => { try { return JSON.parse(localStorage.getItem(GKEY) || "{}"); } catch (e) { return {}; } })());
+  GS.cool = Object.assign({ on: true, n: 4, min: 30 }, GS.cool); GS.tg = Object.assign({ token: "", chat: "", on: false, start: true, stops: true, trades: false, daily: true, weekly: true, cmds: true, lastId: -1 }, GS.tg);
+  const saveG = () => { try { localStorage.setItem(GKEY, JSON.stringify(GS)); } catch (e) {} };
+  const hhmm = ms => new Date(ms).toTimeString().slice(0, 5);
+  const accName = a => a === "real" ? "REAL" : "DEMO";
+
+  function guardBlock() {
+    if (GS.coolUntil > Date.now())
+      return `🛡️ cool-off: ${GS.coolWhy || "losses in a row"} - trading is paused until ${hhmm(GS.coolUntil)} (${Math.ceil((GS.coolUntil - Date.now()) / 60000)} min left). Take a break. (Override in 🛡️ Guard.)`;
+    return "";
+  }
+  function lossRow() {   // losses in a row on this wallet, since the last cool-off ended
+    const acc = accNow(); let n = 0;
+    for (let i = H.length - 1; i >= 0; i--) {
+      const x = H[i]; if (x.acc !== acc || x.profit == null || x.t < GS.coolFrom) continue;
+      if (x.res === "loss") n++; else if (x.res === "win") break;
+    }
+    return n;
+  }
+  function guardAfter(grp) {
+    if (GS.tg.on && GS.tg.trades) for (const x of grp) if (x.profit != null)
+      tg(`${x.res === "win" ? "✅ WON" : "❌ LOST"} ${money2(x.profit)} · ${x.bet} $${x.stake} · today ${money2(-dayLossNow())} (${accName(x.acc)})`);
+    if (!GS.cool.on || GS.coolUntil > Date.now()) return;
+    const n = lossRow();
+    if (n >= GS.cool.n) {
+      GS.coolUntil = Date.now() + GS.cool.min * 60000; GS.coolWhy = `${n} losses in a row`; saveG();
+      if (RB.on) rbStop(`cool-off after ${n} losses in a row`);
+      if (running) stop(`cool-off after ${n} losses in a row`);
+      log(`🛡️ COOL-OFF: ${n} losses in a row - every bot here is paused for ${GS.cool.min} min (until ${hhmm(GS.coolUntil)}). Losing runs are normal; chasing them is what empties accounts.`, "warn");
+      guardRender();
+    }
+  }
+  async function guardOverride() {
+    if (!(GS.coolUntil > Date.now())) return;
+    const t = prompt(`Cool-off: ${GS.coolWhy}. It ends at ${hhmm(GS.coolUntil)}.\n\nThe pause is there to stop chasing losses. If you're sure, type  I AM CALM  to end it now.`);
+    if ((t || "").trim().toUpperCase() !== "I AM CALM") return log("cool-off kept ✓", "ok");
+    if (window.DigitBotAndroid && window.DigitBotAndroid.auth) {          // DigitBot app: fingerprint / face too
+      const ok = await new Promise(res => { window.__dbAuthDone = res; try { window.DigitBotAndroid.auth("End the cool-off"); } catch (e) { res(false); } setTimeout(() => res(false), 60000); });
+      if (!ok) return log("cool-off kept (not confirmed with your fingerprint)", "warn");
+    }
+    GS.coolUntil = 0; GS.coolFrom = Date.now(); saveG(); log("🛡️ cool-off ended by you. Losing streak counter reset.", "warn"); tg("🛡️ Cool-off ended early by you.");
+    guardRender();
+  }
+
+  // ---- 📲 Telegram (direct from this page; nothing goes through any other server)
+  async function tg(text, force) {
+    const T = GS.tg; if (!T.token || !T.chat || (!T.on && !force)) return false;
+    try {
+      const r = await fetch(`https://api.telegram.org/bot${T.token}/sendMessage`, { method: "POST",
+        body: new URLSearchParams({ chat_id: T.chat, text: "🤖 Digit Bot\n" + text, disable_web_page_preview: "true" }) });
+      const j = await r.json(); return !!j.ok;
+    } catch (e) { return false; }
+  }
+  function guardLog(msg, cls) {
+    const T = GS.tg; if (!T.on) return;
+    if (T.start && (/^START (LIVE|WATCH)/.test(msg) || /ROUNDS ON/.test(msg))) tg("▶ " + msg);
+    else if (T.stops && (/^STOP:/.test(msg) || /ROUNDS OFF/.test(msg) || /COOL-OFF|daily loss limit reached/.test(msg))) tg("■ " + msg);
+  }
+  function statusText() {
+    const bal = balance(), d = summary(today(accNow()));
+    return `${running ? "● Auto bot LIVE" : RB.on ? "● Rounds LIVE \"" + BS.name + "\"" : "■ stopped"} · ${accName(accNow())}\n` +
+      `balance ${bal == null ? "?" : "$" + bal.toFixed(2)} · today ${d.n} trades, ${d.rate == null ? "–" : d.rate + "% won"}, P/L ${money2(d.pl)}` +
+      (GS.coolUntil > Date.now() ? `\n🛡️ cool-off until ${hhmm(GS.coolUntil)}` : "") + (S.dayLimit > 0 ? `\ndaily loss limit $${S.dayLimit} (lost today $${Math.max(0, dayLossNow()).toFixed(2)})` : "");
+  }
+  let tgBusy = false;
+  async function tgPoll() {          // commands from your Telegram chat (only from YOUR chat id)
+    const T = GS.tg; if (!T.on || !T.cmds || !T.token || !T.chat || tgBusy) return;
+    tgBusy = true;
+    try {
+      const j = await (await fetch(`https://api.telegram.org/bot${T.token}/getUpdates?offset=-20&timeout=0`)).json();
+      if (!j.ok) return;
+      const ups = (j.result || []).filter(u => u.message && String(u.message.chat.id) === String(T.chat));
+      const maxId = Math.max(T.lastId, ...ups.map(u => u.update_id));
+      if (T.lastId < 0) { T.lastId = maxId; saveG(); return; }          // first time: ignore old messages
+      for (const u of ups.filter(u => u.update_id > T.lastId)) {
+        const m = (u.message.text || "").trim().toLowerCase(), age = Date.now() / 1000 - u.message.date;
+        if (age > 600) continue;                                        // older than 10 minutes: ignore
+        if (/^\/?stop/.test(m)) { if (RB.on) rbStop("stopped from Telegram"); if (running) stop("stopped from Telegram"); tg("■ Stopped.\n" + statusText(), true); }
+        else if (/^\/?status/.test(m)) tg(statusText(), true);
+        else if (/^\/?pause/.test(m)) { const mins = Math.max(5, Math.min(1440, parseInt(m.replace(/\D+/g, "")) || 60));
+          GS.coolUntil = Date.now() + mins * 60000; GS.coolWhy = "paused from Telegram"; saveG();
+          if (RB.on) rbStop("paused from Telegram"); if (running) stop("paused from Telegram"); tg(`⏸ Paused for ${mins} min (until ${hhmm(GS.coolUntil)}).`, true); guardRender(); }
+        else if (/^\/?resume/.test(m)) { GS.coolUntil = 0; GS.coolFrom = Date.now(); saveG(); tg("▶ Pause lifted. Start the bot on the phone/PC when you're ready.", true); guardRender(); }
+        else if (/^\/?(help|start)/.test(m)) tg("Commands: /status · /stop · /pause 60 (minutes) · /resume", true);
+      }
+      T.lastId = maxId; saveG();
+    } catch (e) {} finally { tgBusy = false; }
+  }
+  setInterval(tgPoll, 15000);
+
+  // ---- daily summary (yesterday) and weekly report (Mondays)
+  function daySummary(dayStr) {
+    const out = [];
+    for (const acc of ["demo", "real"]) {
+      const l = H.filter(x => x.acc === acc && dayOf(x.t) === dayStr); if (!l.length) continue;
+      const d = summary(l);
+      out.push(`${accName(acc)}: ${d.n} trades · ${d.rate == null ? "–" : d.rate + "% won"} · P/L ${money2(d.pl)} · staked $${d.staked.toFixed(2)} · worst losing run ${d.worst}`);
+    }
+    return out.join("\n");
+  }
+  function guardClock() {
+    const now = new Date(), td = dayOf(Date.now());
+    if (GS.lastDaily !== td) {
+      const y = dayOf(Date.now() - 864e5), sm = daySummary(y);
+      if (sm && GS.tg.on && GS.tg.daily) tg(`📅 Yesterday (${y})\n${sm}`);
+      GS.lastDaily = td; saveG();
+    }
+    if (now.getDay() === 1 && GS.lastWeekly !== td) {
+      if (GS.tg.on && GS.tg.weekly && H.some(x => x.t > Date.now() - 7 * 864e5)) tg("📓 Weekly coach report (last 7 days)\n\n" + coach(null, 7).map(f => "• " + f.t.replace(/<[^>]+>/g, "")).join("\n"));
+      GS.lastWeekly = td; saveG();
+    }
+  }
+  setTimeout(guardClock, 20000); setInterval(guardClock, 10 * 60000);
+
+  // ---- 📓 coach: what in YOUR history costs money (plain words)
+  function coach(acc, days) {
+    const since = days ? Date.now() - days * 864e5 : 0;
+    const L = H.filter(x => (!acc || x.acc === acc) && x.t >= since && x.profit != null && (x.res === "win" || x.res === "loss"));
+    const F = [], f = (t, k) => F.push({ t, k: k || "" }), m = v => money2(v);
+    if (L.length < 15) { f(`Only ${L.length} finished trades in this period - trade more (on DEMO) before reading anything into it.`); return F; }
+    const pl = L.reduce((a, x) => a + x.profit, 0), st = L.reduce((a, x) => a + x.stake, 0), w = L.filter(x => x.res === "win").length;
+    f(`<b>${L.length} trades</b>, ${Math.round(100 * w / L.length)}% won, P/L <b>${m(pl)}</b> on $${st.toFixed(2)} staked (${(100 * pl / st).toFixed(1)}% per $).`, pl >= 0 ? "g" : "w");
+    // stakes raised after a loss (martingale-style chasing)
+    let up = 0, upPl = 0, maxSt = 0; const avg = a => a.length ? a.reduce((p, q) => p + q, 0) / a.length : 0, afterL = [], afterW = [];
+    for (let i = 1; i < L.length; i++) {
+      const a = L[i - 1], b = L[i]; if (b.t - a.t > 30 * 60000 || a.acc !== b.acc) continue;
+      (a.res === "loss" ? afterL : afterW).push(b.stake);
+      if (a.res === "loss" && b.stake > a.stake * 1.05) { up++; upPl += b.profit; maxSt = Math.max(maxSt, b.stake); }
+    }
+    if (up >= 3) f(`⚠️ You (or your stake plan) <b>raised the stake right after a loss ${up} times</b> - biggest $${maxSt.toFixed(2)}. Those trades made ${m(upPl)}. Average stake after a loss $${avg(afterL).toFixed(2)} vs after a win $${avg(afterW).toFixed(2)}. Chasing losses is the fastest way to empty an account: keep stakes flat.`, "w");
+    else f(`✅ You don't chase losses with bigger stakes (only ${up} raises after a loss).`, "g");
+    // loss streaks and what came next
+    let run = 0, worst = 0, longRuns = 0; for (const x of L) { run = x.res === "loss" ? run + 1 : 0; worst = Math.max(worst, run); if (run === 5) longRuns++; }
+    f(`Longest losing run: <b>${worst}</b>${longRuns ? ` (5+ losses in a row happened ${longRuns} time${longRuns > 1 ? "s" : ""})` : ""}. ${GS.cool.on ? `Your cool-off stops the bots after ${GS.cool.n} in a row.` : "Turn on the cool-off above so a losing run can't snowball."}`, worst >= 6 ? "w" : "");
+    // by bet type and strategy
+    const grp = key => { const g = {}; for (const x of L) { const k = key(x) || "?"; (g[k] = g[k] || { n: 0, pl: 0, st: 0 }); g[k].n++; g[k].pl += x.profit; g[k].st += x.stake; } return Object.entries(g).filter(([, v]) => v.n >= 15).sort((a, b) => a[1].pl / a[1].st - b[1].pl / b[1].st); };
+    const bets = grp(x => x.bet);
+    if (bets.length >= 2) { const [wk, wv] = bets[0], [bk, bv] = bets[bets.length - 1];
+      f(`By bet: worst <b>${wk}</b> ${m(wv.pl)} over ${wv.n} trades (${(100 * wv.pl / wv.st).toFixed(1)}% per $); best <b>${bk}</b> ${m(bv.pl)} over ${bv.n}. With random digits most of this gap is luck - but if the worst one is also your favourite, try less of it.`, wv.pl < 0 ? "w" : ""); }
+    const strats = grp(x => x.strat);
+    for (const [k, v] of strats) if (v.pl < 0 && v.n >= 40) f(`⚠️ Strategy <b>${k}</b>: ${m(v.pl)} over ${v.n} trades. It isn't working for you - stop it or cut its stake.`, "w");
+    // hours
+    const hrs = grp(x => String(new Date(x.t).getHours()).padStart(2, "0") + ":00");
+    if (hrs.length >= 3) f(`By hour: weakest ${hrs[0][0]} (${m(hrs[0][1].pl)} over ${hrs[0][1].n}), best ${hrs[hrs.length - 1][0]} (${m(hrs[hrs.length - 1][1].pl)}). Long late-night sessions are where tired, tilted trades happen.`);
+    // long days
+    const days2 = grp(x => dayOf(x.t)).filter(([, v]) => v.n >= 150);
+    if (days2.length) f(`⚠️ ${days2.length} day(s) with 150+ trades - the more you trade a game with a built-in edge against you, the surer the loss. Use max trades and a daily loss limit.`, "w");
+    // real money
+    const real = L.filter(x => x.acc === "real");
+    if (real.length) { const rp = real.reduce((a, x) => a + x.profit, 0); f(`REAL money: ${real.length} trades, ${m(rp)}. ${rp < 0 ? "Go back to DEMO until a strategy shows a profit there over hundreds of trades." : "Keep the daily loss limit on anyway."}`, rp < 0 ? "w" : "g"); }
+    f(`<small>MMG payouts are below fair odds, so every bet loses a little on average. The coach can't make that positive - it shows where you lose more than you have to.</small>`);
+    return F;
+  }
+
+  // ---- the 🛡️ Guard tab
+  const pG = document.createElement("div"); pG.className = "g gd"; pG.id = "pGuard"; pG.style.display = "none";
+  $("pStats").parentNode.insertBefore(pG, $("pStats").nextSibling);
+  pG.innerHTML = `
+    <h4>🛡️ Risk guardian</h4>
+    <div class="gst" id="gdState"></div>
+    <div class="gr"><label class="ck"><input type="checkbox" id="gd_cool"> Cool-off after</label><input type="number" id="gd_n" min="2" max="20"> losses in a row,
+      pause all bots for<input type="number" id="gd_min" min="5" max="1440"> min</div>
+    <div class="gr"><button class="once" id="gdOver" style="display:none">End the cool-off early…</button></div>
+    <small>Covers Auto, Manual and 🧩 Rounds together, like the daily loss limit (set in 📊 Stats). The override needs you to type I AM CALM (and your fingerprint in the DigitBot app).</small>
+    <h4>📲 Telegram alerts</h4>
+    <div class="gr"><label class="ck"><input type="checkbox" id="gd_tgon"> Send alerts to Telegram</label></div>
+    <div class="gr"><input type="password" id="gd_tok" placeholder="bot token from @BotFather" autocomplete="off"></div>
+    <div class="gr"><input type="text" id="gd_chat" placeholder="your chat id"><button class="clr" id="gdFind">Find my chat id</button><button class="clr" id="gdTest">Send test</button></div>
+    <div class="gr"><label class="ck"><input type="checkbox" id="gd_start"> start</label><label class="ck"><input type="checkbox" id="gd_stops"> stops, limits, cool-off</label>
+      <label class="ck"><input type="checkbox" id="gd_trades"> every trade</label><label class="ck"><input type="checkbox" id="gd_daily"> daily summary</label>
+      <label class="ck"><input type="checkbox" id="gd_weekly"> weekly coach report</label><label class="ck"><input type="checkbox" id="gd_cmds"> accept /stop /status /pause /resume</label></div>
+    <small>Setup: in Telegram open <b>@BotFather</b> → /newbot → copy the token here. Then send any message (e.g. "hi") to your new bot and press <b>Find my chat id</b>.
+      Messages go straight from this page to Telegram. Commands are only accepted from your own chat.</small>
+    <h4>📓 Coach</h4>
+    <div class="gr"><select id="gd_acc"><option value="">DEMO + REAL</option><option value="demo">DEMO</option><option value="real">REAL</option></select>
+      <select id="gd_days"><option value="7">last 7 days</option><option value="30">last 30 days</option><option value="0">all my history</option></select>
+      <button class="clr" id="gdCoach">Analyse my trades</button><button class="clr" id="gdSendCoach">Send to Telegram</button></div>
+    <div id="gdCoachOut"></div>`;
+  const gb = (id, v) => { const el = $(id); if (el.type === "checkbox") el.checked = !!v; else el.value = v ?? ""; };
+  function guardRender() {
+    if (!$("gdState")) return;
+    gb("gd_cool", GS.cool.on); gb("gd_n", GS.cool.n); gb("gd_min", GS.cool.min);
+    const T = GS.tg; gb("gd_tgon", T.on); gb("gd_tok", T.token); gb("gd_chat", T.chat);
+    ["start", "stops", "trades", "daily", "weekly", "cmds"].forEach(k => gb("gd_" + k, T[k]));
+    const cool = GS.coolUntil > Date.now();
+    $("gdState").className = "gst " + (cool ? "cool" : "ok");
+    $("gdState").innerHTML = cool ? `⏸ <b>Cool-off</b>: ${GS.coolWhy}. Bots paused until <b>${hhmm(GS.coolUntil)}</b> (${Math.ceil((GS.coolUntil - Date.now()) / 60000)} min).`
+      : `✅ Trading allowed · losses in a row now: <b>${lossRow()}</b>${GS.cool.on ? ` of ${GS.cool.n}` : " (cool-off off)"} · today ${money2(-dayLossNow())}${S.dayLimit > 0 ? ` (daily limit $${S.dayLimit})` : ""}` +
+        (T.on ? " · 📲 Telegram on" : "");
+    $("gdOver").style.display = cool ? "" : "none";
+  }
+  pG.addEventListener("change", () => {
+    const num = (id, lo, hi, d) => { const v = parseInt($(id).value); return isNaN(v) ? d : Math.max(lo, Math.min(hi, v)); };
+    GS.cool = { on: $("gd_cool").checked, n: num("gd_n", 2, 20, 4), min: num("gd_min", 5, 1440, 30) };
+    const T = GS.tg; T.on = $("gd_tgon").checked; T.token = $("gd_tok").value.trim(); T.chat = $("gd_chat").value.trim();
+    ["start", "stops", "trades", "daily", "weekly", "cmds"].forEach(k => T[k] = $("gd_" + k).checked);
+    saveG(); guardRender();
+  });
+  $("gdOver").onclick = guardOverride;
+  $("gdTest").onclick = async () => { const ok = await tg("✅ Test message. Alerts from your Digit Bot will arrive here.\n" + statusText(), true);
+    log(ok ? "📲 Telegram test sent ✓" : "📲 Telegram test failed - check the token and chat id (send your bot a message first)", ok ? "ok" : "warn"); };
+  $("gdFind").onclick = async () => {
+    const tok = $("gd_tok").value.trim(); if (!tok) return log("Paste the bot token first.", "warn");
+    try {
+      const j = await (await fetch(`https://api.telegram.org/bot${tok}/getUpdates?offset=-10`)).json();
+      if (!j.ok) return log("Telegram says: " + (j.description || "token not accepted"), "warn");
+      const m = (j.result || []).map(u => u.message).filter(Boolean).pop();
+      if (!m) return log("No message found: open your bot in Telegram, send it \"hi\", then press Find again.", "warn");
+      $("gd_chat").value = m.chat.id; GS.tg.chat = String(m.chat.id); GS.tg.token = tok; saveG(); guardRender();
+      log(`📲 found your chat (${m.chat.first_name || m.chat.title || ""} ${m.chat.id}) ✓ - press Send test`, "ok");
+    } catch (e) { log("Couldn't reach Telegram: " + e, "warn"); }
+  };
+  const coachHtml = () => coach($("gd_acc").value || null, +$("gd_days").value).map(x => `<div class="fd ${x.k}">${x.t}</div>`).join("");
+  $("gdCoach").onclick = () => { $("gdCoachOut").innerHTML = coachHtml(); };
+  $("gdSendCoach").onclick = async () => { const ok = await tg("📓 Coach report\n\n" + coach($("gd_acc").value || null, +$("gd_days").value).map(f => "• " + f.t.replace(/<[^>]+>/g, "")).join("\n"), true);
+    log(ok ? "📓 coach report sent to Telegram ✓" : "Telegram isn't set up yet (token + chat id)", ok ? "ok" : "warn"); };
+  setInterval(() => { if (S.tab === "guard") guardRender(); }, 5000);
+  window.__mmgGuard = { GS, coach, lossRow, guardBlock, statusText, daySummary, tgPoll, guardAfter, guardClock, get H() { return H; } };
+  if (S.tab === "guard") showTab();
 
   // ================================================================== 🧩 ROUND BUILDER (our take on MMG's Auto Trader)
   // A strategy = settings + rule cards. Each round (after the last trade has settled) the first card whose IF is true

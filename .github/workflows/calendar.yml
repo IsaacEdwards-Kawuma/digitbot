@@ -1,0 +1,21 @@
+name: News calendar
+# Copies the economic calendar to calendar.json every 3 hours (the DigitBot pages and the news pause read it).
+on:
+  schedule:
+    - cron: "17 */3 * * *"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency: calendar
+jobs:
+  calendar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/fetch_calendar.py
+      - name: Save
+        run: |
+          git config user.name "digitbot-calendar"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add calendar.json
+          git diff --cached --quiet || (git commit -m "news calendar update" && git pull --rebase && git push)

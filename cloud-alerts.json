@@ -1,0 +1,14 @@
+{
+  "crypto_top": 15,
+  "crypto": [],
+  "forex": ["EURUSDT", "XAUUSDT"],
+  "timeframes": ["1h", "4h"],
+  "strategies": "all",
+  "only_pass": true,
+  "with_trend": true,
+  "sl_atr": 1.5,
+  "rr": 2,
+  "news_minutes": 45,
+  "news_impact": ["High"],
+  "every_minutes": 15
+}

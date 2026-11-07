@@ -113,6 +113,12 @@
   .idea .act { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; } .idea .act button { padding: 6px 10px; }
   .tag.open { background: #334155; } .tag.won { background: #16a34a; } .tag.lost { background: #b91c1c; } .tag.expired { background: #475569; }
   .fdck { display: inline-flex; align-items: center; gap: 4px; margin-right: 10px; white-space: nowrap; }
+
+  .gdst { padding: 8px 12px; border-radius: 10px; background: #14532d33; border: 1px solid #166534; margin-bottom: 8px; }
+  .gdst.cool { background: #78350f44; border-color: #f59e0b; } .gdst.news { background: #1e3a8a44; border-color: #3b82f6; }
+  .gdf { padding: 7px 10px; border-radius: 8px; background: #0f172a; border: 1px solid #334155; margin-top: 6px; font-size: 13.5px; }
+  .gdf.w { border-color: #b45309; } .gdf.g { border-color: #166534; }
+  tr.soon td { background: #1e3a8a33; } tr.mine td { font-weight: 600; }
 </style>
 </head>
 <body>
@@ -160,7 +166,7 @@
   <div class="note" id="live">connecting to the live feed…</div>
 
   <div class="tabs">
-    <button data-t="sig" class="on">📈 Signals</button><button data-t="mk">🔥 Market</button><button data-t="fd">📡 Finder</button><button data-t="bt">🧪 Backtest</button><button data-t="sb">🛠️ My strategies</button>
+    <button data-t="sig" class="on">📈 Signals</button><button data-t="mk">🔥 Market</button><button data-t="fd">📡 Finder</button><button data-t="gd">🛡️ Guard</button><button data-t="bt">🧪 Backtest</button><button data-t="sb">🛠️ My strategies</button>
     <button data-t="pt">🤖 Practice trading</button><button data-t="live" id="tabLive" class="hide">⚡ Live trading (PC)</button><button data-t="st">🖱️ Screen Trader</button><button data-t="help">❓ Help</button>
   </div>
 
@@ -227,6 +233,19 @@
     <h3 style="margin:14px 0 4px">Open trades</h3><div class="scroll"><table id="ptPos"></table></div>
     <h3 style="margin:14px 0 4px">History</h3><div class="scroll"><table id="ptHist"></table></div>
     <div class="row" style="margin-top:10px"><button id="ptCsv">Download history (CSV)</button><button id="ptReset">Reset practice account</button></div>
+    <div class="box" style="margin-top:12px"><h3>🪜 Grid bot (practice)</h3>
+      <div class="note" style="margin-top:0">Buys in small steps as the price falls and sells each step one level higher. It earns in a market that goes up and down,
+        and <b>loses in a long fall</b> - that's what the hard stop is for. Practice money; test it on history first.</div>
+      <div class="row">
+        <label>Lowest buy<input type="number" id="grLo" step="any" style="width:110px"></label><label>Highest level<input type="number" id="grHi" step="any" style="width:110px"></label>
+        <label>Levels<input type="number" id="grN" min="3" max="60" value="10" style="width:70px"></label><label>$ per level<input type="number" id="grPer" min="5" value="100" style="width:90px"></label>
+        <label>Hard stop (sell all below)<input type="number" id="grStop" step="any" style="width:110px"></label>
+      </div>
+      <div class="row" style="margin-top:6px"><button id="grSuggest">Suggest from the last 7 days</button><button id="grTest">🧪 Test on history</button>
+        <button class="pri" id="grStart">▶ Start grid</button><button id="grStopB">■ Stop and sell</button></div>
+      <div class="note" id="grState">Grid is off.</div>
+      <div id="grOut"></div>
+    </div>
     <div id="log"></div>
     <div class="note">Practice money only ($10,000 to start). Auto trading works while this page is open; for real trading use the PC app.</div>
   </div>
@@ -332,6 +351,51 @@
         whether the take-profit or the stop-loss was hit first, so you can see if it is worth following. It scans while this page
         (or the DigitBot app) is open. <b>Ideas are not advice and not a promise:</b> backtests can fail on new data. Try them on the practice account first and keep the risk small.</div>
       <div class="row"><button id="fdClear">🗑 Clear ideas and score</button></div>
+    </div>
+  </div>
+  <!-- ===================== 🛡️ Guard -->
+  <div class="pane hide" id="t_gd">
+    <div class="box"><h3>🛡️ Risk guardian</h3>
+      <div class="gdst" id="gdState"></div>
+      <div class="row"><label style="flex-direction:row;align-items:center;gap:6px;color:var(--tx)"><input type="checkbox" id="gd_cool"> Cool-off after</label>
+        <input type="number" id="gd_n" min="2" max="20" style="width:64px"><span class="mut">losing trades in a row → pause new trades for</span>
+        <input type="number" id="gd_min" min="5" max="1440" style="width:74px"><span class="mut">min</span><button id="gdOver" class="hide">End the cool-off early…</button></div>
+      <div class="note">Covers 🤖 auto practice, the 🪜 grid bot and the 📡 Finder alerts on this page. The daily loss limit is in 🤖 Practice trading (Max daily loss %).
+        The PC app's live trading has the same guardian built in (cool-off, news pause, daily limit).</div>
+    </div>
+    <div class="box" style="margin-top:10px"><h3>📰 News pause</h3>
+      <div class="row"><label style="flex-direction:row;align-items:center;gap:6px;color:var(--tx)"><input type="checkbox" id="gd_news"> Pause new trades from</label>
+        <input type="number" id="gd_nb" min="0" max="240" style="width:64px"><span class="mut">min before to</span><input type="number" id="gd_na" min="0" max="240" style="width:64px"><span class="mut">min after</span>
+        <select id="gd_imp"><option value="High">high-impact news</option><option value="Medium">high + medium impact</option></select></div>
+      <div class="note" id="gdNewsNote"></div>
+      <div class="scroll"><table id="gdNews"></table></div>
+    </div>
+    <div class="box" style="margin-top:10px"><h3>🧪 Paper-proof gate</h3>
+      <div class="row"><label style="flex-direction:row;align-items:center;gap:6px;color:var(--tx)"><input type="checkbox" id="gd_proof"> Real money only after</label>
+        <input type="number" id="gd_pn" min="10" max="500" style="width:70px"><span class="mut">paper trades with a positive result</span>
+        <select id="gd_psame"><option value="0">for the strategy (any market)</option><option value="1">for the strategy on that market</option></select></div>
+      <div class="note">Paper = 🤖 practice trades (auto and manual) + 📡 Finder ideas that hit their take-profit or stop-loss. It locks ⚡ Live trading when the PC app is on a LIVE (real) account,
+        and the 🖱️ Screen Trader's auto mode. Testnet / demo stay open so you can collect the proof there too.</div>
+      <div class="scroll"><table id="gdProof"></table></div>
+    </div>
+    <div class="box" style="margin-top:10px"><h3>📲 Telegram</h3>
+      <div class="row"><label style="flex-direction:row;align-items:center;gap:6px;color:var(--tx)"><input type="checkbox" id="gd_tgon"> Send to Telegram</label>
+        <input type="password" id="gd_tok" placeholder="bot token from @BotFather" autocomplete="off" style="flex:1;min-width:200px">
+        <input type="text" id="gd_chat" placeholder="chat id" style="width:130px"><button id="gdFind">Find my chat id</button><button id="gdTest">Send test</button></div>
+      <div class="row">
+        <label class="fdck"><input type="checkbox" id="gd_ideas">📡 Finder ideas</label><label class="fdck"><input type="checkbox" id="gd_alerts">🔔 price alerts</label>
+        <label class="fdck"><input type="checkbox" id="gd_guard">🛡️ cool-off, news, limits</label><label class="fdck"><input type="checkbox" id="gd_trades">practice trades</label>
+        <label class="fdck"><input type="checkbox" id="gd_daily">daily summary</label><label class="fdck"><input type="checkbox" id="gd_weekly">weekly coach</label>
+        <label class="fdck"><input type="checkbox" id="gd_cmds">accept /stop /status /pause /resume</label></div>
+      <div class="note">Setup: in Telegram open <b>@BotFather</b> → /newbot → paste the token here → send your bot "hi" → <b>Find my chat id</b> → <b>Send test</b>.
+        You can use the same bot as the MMG Digit Bot: commands then reach both. Messages go straight from this page to Telegram.<br>
+        <b>While everything is closed</b>: the free cloud alerts on GitHub scan the markets every 15 minutes and send 📡 ideas + 📰 news warnings to the same Telegram -
+        see <a href="https://github.com/IsaacEdwards-Kawuma/digitbot/blob/main/CLOUD-ALERTS.md" target="_blank" style="color:#38bdf8">how to switch them on</a> (2 minutes).</div>
+    </div>
+    <div class="box" style="margin-top:10px"><h3>📓 Journal coach</h3>
+      <div class="row"><select id="gd_days"><option value="7">last 7 days</option><option value="30" selected>last 30 days</option><option value="0">everything</option></select>
+        <button class="pri" id="gdCoach">Analyse my trades</button><button id="gdSendCoach">Send to Telegram</button></div>
+      <div id="gdCoachOut"></div>
     </div>
   </div>
   <!-- ===================== Strategy builder -->

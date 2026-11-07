@@ -1,0 +1,23 @@
+name: Cloud alerts
+# Every 15 minutes: trade ideas + news warnings to your Telegram, even when DigitBot is closed.
+# Needs repository secrets TG_TOKEN and TG_CHAT (see CLOUD-ALERTS.md). Without them it does nothing.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency: cloud-alerts
+jobs:
+  alerts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/cloud_alerts.js
+        env:
+          TG_TOKEN: ${{ secrets.TG_TOKEN }}
+          TG_CHAT: ${{ secrets.TG_CHAT }}

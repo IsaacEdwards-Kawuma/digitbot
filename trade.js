@@ -315,6 +315,7 @@
   const lastPrice = {};
   function unreal(t) { const px = lastPrice[t.sym]; if (px == null) return 0; return (t.side === "buy" ? px - t.entry : t.entry - px) * t.units; }
   function blocked(manual) {
+    { const g = guardBlock($("sym").value, mode, manual); if (g) return g; }
     const dayPL = todayHist().reduce((s, h) => s + h.pl, 0), dayStartBal = acct.bal - dayPL, lim = dayStartBal * (+$("ptDay").value || 0) / 100;
     if (lim > 0 && -dayPL >= lim) return `daily loss limit reached (${money(dayPL)} today, limit ${money(-lim)}); no new trades until tomorrow`;
     if (manual) return "";
@@ -341,6 +342,7 @@
     acct.bal += pl; acct.pos = acct.pos.filter(x => x.id !== t.id);
     acct.hist.push({ t: t.t, exitT: Date.now(), sym: t.sym, tf: t.tf, side: t.side, entry: t.entry, exit: px, units: t.units, pl, r: pl / t.riskMoney, strat: t.strat, reason });
     saveAcct(); log(`CLOSE ${t.side.toUpperCase()} ${label(t.sym)} at ${fmt(px)} (${reason}): ${pl >= 0 ? "+" : ""}${money(pl)}`);
+    try { guardOnClose(acct.hist[acct.hist.length - 1], mode); } catch (e) {}
   }
   function fillOrders() {
     if (!B || !acct.orders || !acct.orders.length) return;
@@ -413,7 +415,8 @@
   // ---------------------------------------------------------------- UI wiring
   function showTab(t) {
     document.querySelectorAll(".tabs button").forEach(b => b.classList.toggle("on", b.dataset.t === t));
-    ["sig", "mk", "fd", "bt", "sb", "pt", "live", "st", "help"].forEach(k => $("t_" + k).classList.toggle("hide", k !== t));
+    ["sig", "mk", "fd", "gd", "bt", "sb", "pt", "live", "st", "help"].forEach(k => $("t_" + k).classList.toggle("hide", k !== t));
+    if (t === "gd") { gdForm(); gdRender(); }
     if (t === "fd") { fdForm(); fdRender(); }
     if (t === "live" && B) draw();
     if (t === "bt" && !$("btTable").innerHTML) runBacktest();
@@ -522,6 +525,7 @@
     beep(); log(`🔔 ${title}: ${body}`);
     const d = document.createElement("div"); d.textContent = `🔔 ${title} - ${body}`; $("toast").appendChild(d); setTimeout(() => d.remove(), 9000);
     try { if ("Notification" in window && Notification.permission === "granted") new Notification("DigitBot: " + title, { body, tag: "db" + title + body }); } catch (e) {}
+    try { if (GD.tg.on && GD.tg.alerts && !/^(BUY|SELL) /.test(title) && title !== "Trade finder") tgSend(`🔔 ${title}\n${body}`); } catch (e) {}
   }
   function checkAlerts(px) {
     const sym = $("sym").value; let hit = false;
@@ -701,6 +705,7 @@
                 label: label($("sym").value), from: mode === "crypto" ? "Crypto" : "Forex", symOverride: t.symOverride || null, risk: SET.risk,
                 sizeUnit: plat === "mt5web" && mode === "forex" ? "lots" : "coin",
                 custom: E.STRATEGIES[$("stStrat").value].custom ? E.STRATEGIES[$("stStrat").value].def : null };
+    if (h.auto && !proofCheck(E.STRATEGIES[h.strategy].name, $("sym").value).ok && prompt(`🧪 Paper-proof gate: ${proofCheck(E.STRATEGIES[h.strategy].name, $("sym").value).text}.\nAuto trading on a platform can be real money.\nOnly if this platform is a DEMO / paper account, type  DEMO  to go on.`) !== "DEMO") return;
     if (!stInstalled()) { if (!confirm("The Screen Trader doesn't seem to be installed in this browser. Open the platform anyway?")) return; }
     else window.dispatchEvent(new CustomEvent("dbst-handoff", { detail: JSON.stringify(h) }));
     log(`Screen Trader: opening ${h.label} on ${PLAT.find(p => p[0] === plat)[1]} (${h.tf}, ${E.STRATEGIES[h.strategy].name}${h.auto ? ", auto" : ""})`);
@@ -879,6 +884,7 @@
       if (!needMatch()) return;
       if (E.STRATEGIES[$("lvStrat").value] && E.STRATEGIES[$("lvStrat").value].custom) return alert("Your own strategies run in the browser: use 🤖 Practice trading or the 🖱️ Screen Trader for them.");
       if (["1s"].includes($("tf").value)) return alert("Auto trading needs 1-minute candles or longer. Pick M1 or more.");
+      if (lastSt && lastSt.mode === "LIVE" && !proofGate(E.STRATEGIES[$("lvStrat").value].name, $("sym").value, "Live auto trading")) return;
       api("/api/auto", { on: true, symbol: $("sym").value, tf: $("tf").value, strategy: $("lvStrat").value, untested: $("lvUntested").checked });
     };
     $("lvAutoOff").onclick = () => api("/api/auto", { on: false });
@@ -1253,6 +1259,7 @@
               at: Date.now(), why: sg.why, status: "open", bias: mv.score,
               bt: { pass: !!(r2 && r2.pass), pf, wr: te && te.trades ? te.win_rate : 0, n: te ? te.trades || 0 : 0, ret: te && te.trades ? te.return_pct : 0, trainPf: r2 && r2.train.trades ? r2.train.profit_factor : 0 } };
             x.score = (x.bt.pass ? 2 : 0) + Math.min(pf, 3) + x.bt.wr / 100 + Math.min(1, Math.abs(mv.score) / 60);
+            try { const ne = newsNear(tg.sym, tg.md); if (ne) { x.news = newsText(ne); x.score -= 2; } } catch (e) {}
             ideas.push(x); found.push(x);
           }
         } catch (e) {}
@@ -1263,6 +1270,7 @@
       found.slice(0, +FD.max).forEach(x => notify(`${x.side.toUpperCase()} ${fdName(x.sym)} (${x.tf})`,
         `entry ≈ ${fmt(x.entry)} · stop-loss ${fmt(x.sl)} (${fdPct(x, x.sl)}) · take-profit ${fmt(x.tp)} (${fdPct(x, x.tp)}) · R:R 1:${fdRR(x)} · ${x.sname}, backtest ${x.bt.pass ? "PASS" : "not passed"} PF ${x.bt.pf ? Math.min(x.bt.pf, 99).toFixed(2) : "–"}`));
       if (found.length > +FD.max) notify("Trade finder", `${found.length - +FD.max} more idea(s) in the 📡 Finder tab`);
+      try { if (GD.tg.on && GD.tg.ideas && found.length && !(GD.coolUntil > Date.now())) tgSend(found.slice(0, +FD.max).map(x => `${x.side === "buy" ? "🟢 BUY" : "🔴 SELL"} ${fdName(x.sym)} (${x.tf})\nentry ≈ ${fmt(x.entry)}\nstop-loss ${fmt(x.sl)} (${fdPct(x, x.sl)})\ntake-profit ${fmt(x.tp)} (${fdPct(x, x.tp)})\nR:R 1:${fdRR(x)} · ${x.sname} · backtest ${x.bt.pass ? "PASS" : "not passed"}${x.news ? "\n⚠️ news: " + x.news : ""}`).join("\n\n")); } catch (e) {}
       log(`📡 finder: ${found.length} new idea(s) from ${targets.length} markets × ${FD.tfs.join("/")} in ${Math.round((Date.now() - t0) / 1000)} s`);
       fdLast = `last scan ${new Date().toTimeString().slice(0, 5)}: ${found.length} new`; fdStateText();
     } catch (e) { fdStateText("scan failed: " + (e.message || e)); }
@@ -1289,7 +1297,7 @@
       <div class="bt">Backtest on this market: <span class="tag ${x.bt.pass ? "pass" : "fail"}">${x.bt.pass ? "PASS" : "not passed"}</span>
         win ${x.bt.wr.toFixed(0)}% · profit factor ${x.bt.pf ? Math.min(x.bt.pf, 99).toFixed(2) : "–"} · ${x.bt.n} trades · ${x.bt.ret >= 0 ? "+" : ""}${x.bt.ret.toFixed(1)}% (newest 30%) ·
         trend ${x.bias >= 25 ? "bullish" : x.bias <= -25 ? "bearish" : "neutral"} (${x.bias > 0 ? "+" : ""}${x.bias})</div>
-      <div class="why">Why: ${x.why}</div>
+      <div class="why">Why: ${x.why}</div>${x.news ? `<div class="why" style="color:#fbbf24">⚠️ News: ${x.news} - prices can jump; consider waiting.</div>` : ""}
       <div class="act"><button data-fdo="${x.key}">📈 Open chart</button><button data-fdp="${x.key}">🤖 Practise it</button><button data-fdx="${x.key}" title="remove">✕</button></div></div>`).join("")
       : `<div class="mut" style="margin-top:8px">No ideas yet. Press 🔎 Scan now, or turn on auto-scan. Choose markets, timeframes and strategies under ⚙️.</div>`;
     const done = ideas.filter(x => x.status === "won" || x.status === "lost"), won = done.filter(x => x.status === "won");
@@ -1322,7 +1330,341 @@
     if (Date.now() >= fdNext) { fdNext = Date.now() + FD.every * 60e3; fdScan(false); }
   }, 5000);
   fdForm(); fdRender();
+
+  // ================================================================ 🛡️ GUARD: risk guardian · news pause · paper-proof gate · Telegram · coach
+  const GD_DEF = { cool: { on: true, n: 3, min: 60 }, coolUntil: 0, coolFrom: 0, coolWhy: "", res: [],
+    news: { on: true, before: 30, after: 30, impact: "High" }, proof: { on: true, n: 50, same: false },
+    tg: { token: "", chat: "", on: false, ideas: true, alerts: true, guard: true, trades: false, daily: true, weekly: true, cmds: true, lastId: -1 },
+    lastDaily: "", lastWeekly: "" };
+  const GD = Object.assign({}, GD_DEF, (() => { try { return JSON.parse(localStorage.getItem("dbGuard") || "{}"); } catch (e) { return {}; } })());
+  ["cool", "news", "proof", "tg"].forEach(k => GD[k] = Object.assign({}, GD_DEF[k], GD[k] || {}));
+  const saveGD = () => localStorage.setItem("dbGuard", JSON.stringify(GD));
+  const hm = ms => new Date(ms).toTimeString().slice(0, 5);
+
+  // ---- 📰 economic calendar (copied to this site every few hours by the GitHub job - the source blocks direct browser reads)
+  let CAL = [];
+  async function loadCal() {
+    try { const r = await fetch("calendar.json?t=" + Math.floor(Date.now() / 18e5)); if (!r.ok) return;
+      CAL = (await r.json()).map(e => Object.assign(e, { ms: Date.parse(e.date) })).filter(e => !isNaN(e.ms)).sort((a, b) => a.ms - b.ms); } catch (e) {}
+  }
+  function ccysOf(sym, md) {
+    if (md === "crypto") return ["USD"];
+    const s = sym.replace(/\.P$/, "");
+    if (/^(XAU|XAG|XPT|XPD|COPPER|CL|NATGAS|PAXG|US30|NAS100|SPX|US500)/.test(s)) return ["USD"];
+    let m = /^USDT([A-Z]{3})$/.exec(s); if (m) return ["USD", m[1]];
+    m = /^([A-Z]{3})USDT$/.exec(s); if (m) return [m[1], "USD"];
+    m = /^([A-Z]{3})([A-Z]{3})$/.exec(s); if (m) return [m[1], m[2]];
+    return ["USD"];
+  }
+  const impactOk = e => e.impact === "High" || (GD.news.impact === "Medium" && e.impact === "Medium");
+  function newsNear(sym, md) {
+    if (!GD.news.on) return null;
+    const c = ccysOf(sym, md), now = Date.now();
+    return CAL.find(e => impactOk(e) && c.includes(e.country) && e.ms - GD.news.before * 60e3 <= now && now <= e.ms + GD.news.after * 60e3) || null;
+  }
+  const newsText = e => `${e.country} ${e.title} ${e.ms > Date.now() ? "in " + Math.ceil((e.ms - Date.now()) / 60e3) + " min" : Math.floor((Date.now() - e.ms) / 60e3) + " min ago"} (${e.impact.toLowerCase()} impact)`;
+
+  // ---- cool-off: losing trades in a row (practice auto/manual + grid round trips)
+  function gdLossRow() { let n = 0; for (let i = GD.res.length - 1; i >= 0; i--) { const x = GD.res[i]; if (x.t < GD.coolFrom) break; if (x.w) break; n++; } return n; }
+  function guardOnClose(h, md) {
+    GD.res.push({ t: Date.now(), w: h.pl > 0 }); GD.res = GD.res.slice(-100);
+    if (GD.tg.on && GD.tg.trades) tgSend(`${h.pl >= 0 ? "✅" : "❌"} practice ${h.side.toUpperCase()} ${label(h.sym)} closed ${money(h.pl)} (${h.reason}) · ${h.strat}`);
+    if (GD.cool.on && !(GD.coolUntil > Date.now())) {
+      const n = gdLossRow();
+      if (n >= GD.cool.n) {
+        GD.coolUntil = Date.now() + GD.cool.min * 60e3; GD.coolWhy = `${n} losing trades in a row`;
+        notify("🛡️ Cool-off", `${n} losing trades in a row: no new trades until ${hm(GD.coolUntil)}. Losing runs are normal - chasing them is not.`);
+        if (GD.tg.on && GD.tg.guard) tgSend(`🛡️ Cool-off: ${n} losing trades in a row. New trades paused until ${hm(GD.coolUntil)}.`);
+      }
+    }
+    saveGD(); if (!$("t_gd").classList.contains("hide")) gdRender();
+  }
+  // "" = OK. Auto trades are blocked by the cool-off and by news; manual ones only by the cool-off.
+  function guardBlock(sym, md, manual) {
+    if (GD.coolUntil > Date.now()) return `🛡️ cool-off (${GD.coolWhy}) until ${hm(GD.coolUntil)}`;
+    if (!manual) { const e = newsNear(sym, md); if (e) return `📰 news pause: ${newsText(e)}`; }
+    return "";
+  }
+  async function gdOverride() {
+    const t = prompt(`Cool-off: ${GD.coolWhy}, until ${hm(GD.coolUntil)}.\nIt's there to stop revenge trading. If you're sure, type  I AM CALM`);
+    if ((t || "").trim().toUpperCase() !== "I AM CALM") return;
+    if (window.DigitBotAndroid && window.DigitBotAndroid.auth) {
+      const ok = await new Promise(res => { window.__dbAuthDone = res; try { window.DigitBotAndroid.auth("End the cool-off"); } catch (e) { res(false); } setTimeout(() => res(false), 60000); });
+      if (!ok) return;
+    }
+    GD.coolUntil = 0; GD.coolFrom = Date.now(); saveGD(); log("🛡️ cool-off ended early by you"); gdRender();
+  }
+
+  // ---- 🧪 paper-proof: practice trades + finished Finder ideas
+  function paperTrades(stratName, sym) {
+    const out = [];
+    for (const md of ["forex", "crypto"]) {
+      let a = null; try { a = md === mode ? acct : JSON.parse(localStorage.getItem("dbTrade.acct." + md) || "null"); } catch (e) {}
+      ((a && a.hist) || []).forEach(h => { if (h.strat === stratName && (!sym || h.sym === sym)) out.push({ t: h.exitT, r: h.r || 0 }); });
+    }
+    ideas.filter(x => (x.status === "won" || x.status === "lost") && x.sname === stratName && (!sym || x.sym === sym))
+      .forEach(x => out.push({ t: x.exitAt || x.at, r: x.status === "won" ? Math.abs(x.tp - x.entry) / Math.abs(x.entry - x.sl) : -1 }));
+    return out;
+  }
+  function proofCheck(stratName, sym) {
+    const l = paperTrades(stratName, GD.proof.same ? sym : null), R = l.reduce((s, x) => s + x.r, 0), need = GD.proof.n;
+    const ok = !GD.proof.on || (l.length >= need && R > 0);
+    return { ok, n: l.length, need, R, text: `${stratName}: ${l.length}/${need} paper trades, ${R >= 0 ? "+" : ""}${R.toFixed(1)} R${GD.proof.same ? " on " + label(sym) : ""}` };
+  }
+  function proofGate(stratName, sym, what) {
+    const p = proofCheck(stratName, sym); if (p.ok) return true;
+    alert(`🧪 Paper-proof gate: ${what} is locked for this strategy.\n\n${p.text}.\nIt needs ${p.need} paper trades with a positive total before real money.\n\n` +
+      `Collect them with 🤖 Practice trading (or testnet/demo), or change the rule in 🛡️ Guard.`);
+    log(`🧪 locked: ${p.text}`); return false;
+  }
+
+  // ---- 📲 Telegram
+  async function tgSend(text, force) {
+    const T = GD.tg; if (!T.token || !T.chat || (!T.on && !force)) return false;
+    try { const j = await (await fetch(`https://api.telegram.org/bot${T.token}/sendMessage`, { method: "POST",
+        body: new URLSearchParams({ chat_id: T.chat, text: "📈 DigitBot Forex/Crypto\n" + text, disable_web_page_preview: "true" }) })).json(); return !!j.ok; }
+    catch (e) { return false; }
+  }
+  function gdStatusText() {
+    const a = acct, th = todayHist(), pl = th.reduce((s, h) => s + h.pl, 0);
+    return `${auto ? "● auto practice: " + E.STRATEGIES[auto.strat].name + " on " + label(auto.sym) + " " + auto.tf : "auto practice off"}` +
+      `${GRID && GRID.on ? `\n🪜 grid on ${label(GRID.sym)}: ${GRID.levels.filter(l => l.f).length}/${GRID.levels.length} levels bought, realised ${money(GRID.realized)}` : ""}` +
+      `\n${mode} practice balance ${money(a.bal)} · today ${money(pl)} (${th.length} trades)` +
+      (GD.coolUntil > Date.now() ? `\n🛡️ cool-off until ${hm(GD.coolUntil)}` : "") + `\n📡 Finder ${FD.on ? "auto-scan on" : "off"}, ${ideas.filter(x => x.status === "open").length} open ideas`;
+  }
+  function gdStopAll(why) {
+    if (auto) { auto = null; $("ptState").textContent = "Auto is off (" + why + ")."; }
+    if (GRID && GRID.on) gridStop(why);
+    if (PC) api("/api/auto", { on: false }).catch(() => {});
+    log(`■ everything stopped: ${why}`);
+  }
+  let tgBusy2 = false;
+  async function gdPoll() {
+    const T = GD.tg; if (!T.on || !T.cmds || !T.token || !T.chat || tgBusy2) return; tgBusy2 = true;
+    try {
+      const j = await (await fetch(`https://api.telegram.org/bot${T.token}/getUpdates?offset=-20&timeout=0`)).json(); if (!j.ok) return;
+      const ups = (j.result || []).filter(u => u.message && String(u.message.chat.id) === String(T.chat)), maxId = Math.max(T.lastId, ...ups.map(u => u.update_id));
+      if (T.lastId < 0) { T.lastId = maxId; saveGD(); return; }
+      for (const u of ups.filter(u => u.update_id > T.lastId)) {
+        const m = (u.message.text || "").trim().toLowerCase(); if (Date.now() / 1000 - u.message.date > 600) continue;
+        if (/^\/?stop/.test(m)) { gdStopAll("stopped from Telegram"); tgSend("■ Stopped (auto practice, grid, PC live auto).\n" + gdStatusText(), true); }
+        else if (/^\/?status/.test(m)) tgSend(gdStatusText(), true);
+        else if (/^\/?pause/.test(m)) { const mins = Math.max(5, Math.min(1440, parseInt(m.replace(/\D+/g, "")) || 60));
+          GD.coolUntil = Date.now() + mins * 60e3; GD.coolWhy = "paused from Telegram"; saveGD(); tgSend(`⏸ New trades paused for ${mins} min (until ${hm(GD.coolUntil)}).`, true); }
+        else if (/^\/?resume/.test(m)) { GD.coolUntil = 0; GD.coolFrom = Date.now(); saveGD(); tgSend("▶ Pause lifted.", true); }
+      }
+      T.lastId = maxId; saveGD();
+    } catch (e) {} finally { tgBusy2 = false; }
+  }
+  setInterval(gdPoll, 15000);
+
+  // ---- 📓 journal coach
+  function gdCoach(days) {
+    const since = days ? Date.now() - days * 864e5 : 0, F = [], f = (t, k) => F.push({ t, k: k || "" });
+    const L = [];
+    for (const md of ["forex", "crypto"]) {
+      let a = null; try { a = md === mode ? acct : JSON.parse(localStorage.getItem("dbTrade.acct." + md) || "null"); } catch (e) {}
+      ((a && a.hist) || []).filter(h => h.exitT >= since).forEach(h => L.push(Object.assign({ md }, h)));
+    }
+    L.sort((a, b) => a.t - b.t);
+    if (L.length < 10) { f(`Only ${L.length} practice trades in this period. Trade more on practice (or let 🤖 auto run) before judging anything.`); return F; }
+    const pl = L.reduce((s, h) => s + h.pl, 0), w = L.filter(h => h.pl > 0).length, R = L.reduce((s, h) => s + (h.r || 0), 0);
+    f(`<b>${L.length} trades</b>, ${Math.round(100 * w / L.length)}% won, P/L <b>${money(pl)}</b>, ${R >= 0 ? "+" : ""}${R.toFixed(1)} R (${(R / L.length).toFixed(2)} R per trade).`, pl >= 0 ? "g" : "w");
+    const grp = key => { const g = {}; L.forEach(h => { const k = key(h); (g[k] = g[k] || { n: 0, pl: 0, r: 0, w: 0 }); g[k].n++; g[k].pl += h.pl; g[k].r += h.r || 0; g[k].w += h.pl > 0; }); return g; };
+    Object.entries(grp(h => h.strat)).filter(([, v]) => v.n >= 8).sort((a, b) => a[1].r - b[1].r).forEach(([k, v]) =>
+      f(`${v.r < 0 ? "⚠️" : "✅"} <b>${k}</b>: ${v.n} trades, ${Math.round(100 * v.w / v.n)}% won, ${v.r >= 0 ? "+" : ""}${v.r.toFixed(1)} R (${money(v.pl)}).${v.r < 0 && v.n >= 20 ? " It isn't working for you - stop it or change its settings." : ""}`, v.r < 0 ? "w" : "g"));
+    // revenge trades: opened within 15 min after a loss closed
+    let rev = 0, revR = 0, up = 0;
+    for (let i = 1; i < L.length; i++) {
+      const prev = L.slice(0, i).filter(h => h.exitT <= L[i].t).pop(); if (!prev || prev.pl >= 0) continue;
+      if (L[i].t - prev.exitT < 15 * 60e3) { rev++; revR += L[i].r || 0; }
+      const rk = h => h.r ? Math.abs(h.pl / h.r) : 0; if (rk(L[i]) > rk(prev) * 1.1) up++;
+    }
+    if (rev >= 3) f(`${revR < 0 ? "⚠️" : "ℹ️"} ${rev} trades were opened within 15 minutes of a loss: ${revR >= 0 ? "+" : ""}${revR.toFixed(1)} R. ${revR < 0 ? "That's revenge trading - the cool-off is there for this." : ""}`, revR < 0 ? "w" : "");
+    if (up >= 3) f(`⚠️ You risked more right after a loss ${up} times. Keep the risk per trade fixed (it's in 🤖 Practice trading).`, "w");
+    const man = L.filter(h => /manual/.test(h.strat)), au = L.filter(h => !/manual/.test(h.strat));
+    if (man.length >= 5 && au.length >= 5) { const mr = man.reduce((s, h) => s + (h.r || 0), 0) / man.length, ar = au.reduce((s, h) => s + (h.r || 0), 0) / au.length;
+      f(`Your own (manual) trades average ${mr.toFixed(2)} R, the bot's ${ar.toFixed(2)} R per trade. ${mr < ar ? "The bot does better than your clicks - let it work." : "Your clicks beat the bot so far."}`, mr < ar ? "w" : "g"); }
+    const early = L.filter(h => /closed by you/.test(h.reason) && h.pl > 0 && (h.r || 0) < 1).length;
+    if (early >= 3) f(`⚠️ ${early} winners closed by hand before 1 R. Cutting winners short while losers run to the stop-loss makes a good strategy lose.`, "w");
+    const sides = grp(h => h.side); if (sides.buy && sides.sell && sides.buy.n >= 5 && sides.sell.n >= 5)
+      f(`Buys ${sides.buy.r >= 0 ? "+" : ""}${sides.buy.r.toFixed(1)} R over ${sides.buy.n} · sells ${sides.sell.r >= 0 ? "+" : ""}${sides.sell.r.toFixed(1)} R over ${sides.sell.n}.${sides.sell.r < 0 && sides.buy.r > 0 ? " Consider 'Buy only'." : ""}`);
+    const hrs = Object.entries(grp(h => String(new Date(h.t).getHours()).padStart(2, "0") + ":00")).filter(([, v]) => v.n >= 5).sort((a, b) => a[1].r - b[1].r);
+    if (hrs.length >= 2) f(`Weakest hour ${hrs[0][0]} (${hrs[0][1].r.toFixed(1)} R over ${hrs[0][1].n}), best ${hrs[hrs.length - 1][0]} (${hrs[hrs.length - 1][1].r.toFixed(1)} R).`);
+    const done = ideas.filter(x => x.status === "won" || x.status === "lost");
+    if (done.length >= 10) { const r2 = done.reduce((s, x) => s + (x.status === "won" ? +fdRR(x) : -1), 0);
+      f(`📡 Finder ideas: ${done.length} finished, ${done.filter(x => x.status === "won").length} won, ${r2 >= 0 ? "+" : ""}${r2.toFixed(1)} R.`, r2 >= 0 ? "g" : "w"); }
+    f(`<small class="mut">Practice results only. Past results - and the coach's patterns - can change; small samples are mostly luck.</small>`);
+    return F;
+  }
+
+  // ---- daily summary + weekly coach to Telegram
+  function gdClock() {
+    const td = new Date().toDateString();
+    if (GD.lastDaily !== td) {
+      const y = new Date(Date.now() - 864e5).toDateString(), lines = [];
+      for (const md of ["forex", "crypto"]) {
+        let a = null; try { a = md === mode ? acct : JSON.parse(localStorage.getItem("dbTrade.acct." + md) || "null"); } catch (e) {}
+        const l = ((a && a.hist) || []).filter(h => new Date(h.exitT).toDateString() === y);
+        if (l.length) lines.push(`${md}: ${l.length} practice trades, ${l.filter(h => h.pl > 0).length} won, ${money(l.reduce((s, h) => s + h.pl, 0))}`);
+      }
+      const fi = ideas.filter(x => x.exitAt && new Date(x.exitAt).toDateString() === y);
+      if (fi.length) lines.push(`📡 Finder: ${fi.filter(x => x.status === "won").length} ideas hit take-profit, ${fi.filter(x => x.status === "lost").length} hit stop-loss`);
+      if (lines.length && GD.tg.on && GD.tg.daily) tgSend(`📅 Yesterday\n${lines.join("\n")}`);
+      GD.lastDaily = td; saveGD();
+    }
+    if (new Date().getDay() === 1 && GD.lastWeekly !== td) {
+      if (GD.tg.on && GD.tg.weekly) tgSend("📓 Weekly coach\n\n" + gdCoach(7).map(x => "• " + x.t.replace(/<[^>]+>/g, "")).join("\n"));
+      GD.lastWeekly = td; saveGD();
+    }
+  }
+  setTimeout(gdClock, 15000); setInterval(gdClock, 10 * 60e3);
+
+  // ---- the 🛡️ Guard tab
+  function gdForm() {
+    const v = (id, x) => { const el = $(id); if (el.type === "checkbox") el.checked = !!x; else el.value = x ?? ""; };
+    v("gd_cool", GD.cool.on); v("gd_n", GD.cool.n); v("gd_min", GD.cool.min);
+    v("gd_news", GD.news.on); v("gd_nb", GD.news.before); v("gd_na", GD.news.after); v("gd_imp", GD.news.impact);
+    v("gd_proof", GD.proof.on); v("gd_pn", GD.proof.n); v("gd_psame", GD.proof.same ? "1" : "0");
+    v("gd_tgon", GD.tg.on); v("gd_tok", GD.tg.token); v("gd_chat", GD.tg.chat);
+    ["ideas", "alerts", "guard", "trades", "daily", "weekly", "cmds"].forEach(k => v("gd_" + k, GD.tg[k]));
+  }
+  function gdRender() {
+    const cool = GD.coolUntil > Date.now(), e = newsNear($("sym").value, mode);
+    $("gdState").className = "gdst " + (cool ? "cool" : e ? "news" : "");
+    $("gdState").innerHTML = cool ? `⏸ <b>Cool-off</b>: ${GD.coolWhy}. No new auto/grid/practice trades until <b>${hm(GD.coolUntil)}</b> (${Math.ceil((GD.coolUntil - Date.now()) / 60e3)} min).`
+      : e ? `📰 <b>News pause on ${label($("sym").value)}</b>: ${newsText(e)}. Auto trades wait.`
+      : `✅ Trading allowed · losing trades in a row: <b>${gdLossRow()}</b>${GD.cool.on ? " of " + GD.cool.n : ""}${GD.tg.on ? " · 📲 Telegram on" : ""}`;
+    $("gdOver").classList.toggle("hide", !cool);
+    const soon = CAL.filter(x => impactOk(x) && x.ms > Date.now() - GD.news.after * 60e3 && x.ms < Date.now() + 48 * 36e5).slice(0, 30), mine = ccysOf($("sym").value, mode);
+    $("gdNewsNote").textContent = CAL.length ? `${label($("sym").value)} reacts to ${mine.join(" + ")} news. Next 48 hours:` : "The news calendar isn't loaded yet (it's refreshed on the site every few hours).";
+    $("gdNews").innerHTML = soon.length ? `<tr><th>when</th><th></th><th>news</th><th>impact</th></tr>` + soon.map(x => `<tr class="${mine.includes(x.country) ? "mine" : ""} ${Math.abs(x.ms - Date.now()) < GD.news.before * 60e3 ? "soon" : ""}">
+      <td>${new Date(x.ms).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })}</td><td>${x.country}</td><td>${x.title}</td><td>${x.impact}</td></tr>`).join("") : "";
+    const names = Object.values(E.STRATEGIES).map(s => s.name).concat(["manual"]);
+    $("gdProof").innerHTML = `<tr><th>strategy</th><th>paper trades</th><th>result</th><th>real money</th></tr>` + names.map(n => { const p = proofCheck(n, $("sym").value);
+      return `<tr><td>${n}</td><td>${p.n} / ${p.need}</td><td class="${p.R >= 0 ? "up" : "dn"}">${p.R >= 0 ? "+" : ""}${p.R.toFixed(1)} R</td><td>${p.ok ? "✅ unlocked" : "🔒 locked"}</td></tr>`; }).join("");
+  }
+  $("t_gd").addEventListener("change", ev => {
+    if (ev.target.id === "gd_days") return;
+    const num = (id, lo, hi, d) => { const x = parseFloat($(id).value); return isNaN(x) ? d : Math.max(lo, Math.min(hi, x)); };
+    GD.cool = { on: $("gd_cool").checked, n: num("gd_n", 2, 20, 3), min: num("gd_min", 5, 1440, 60) };
+    GD.news = { on: $("gd_news").checked, before: num("gd_nb", 0, 240, 30), after: num("gd_na", 0, 240, 30), impact: $("gd_imp").value };
+    GD.proof = { on: $("gd_proof").checked, n: num("gd_pn", 10, 500, 50), same: $("gd_psame").value === "1" };
+    Object.assign(GD.tg, { on: $("gd_tgon").checked, token: $("gd_tok").value.trim(), chat: $("gd_chat").value.trim() });
+    ["ideas", "alerts", "guard", "trades", "daily", "weekly", "cmds"].forEach(k => GD.tg[k] = $("gd_" + k).checked);
+    saveGD(); gdForm(); gdRender();
+    if (PC) api("/api/settings", { cooloff_losses: GD.cool.on ? GD.cool.n : 20, cooloff_minutes: GD.cool.min, news_pause: GD.news.on, news_before_min: GD.news.before,
+      news_after_min: GD.news.after, proof_trades: GD.proof.on ? GD.proof.n : 10, telegram_token: GD.tg.on ? GD.tg.token : " ", telegram_chat: GD.tg.on ? GD.tg.chat : " " })
+      .then(() => log("🛡️ guard settings sent to the PC app (live trading)")).catch(() => {});
+  });
+  $("gdOver").onclick = gdOverride;
+  $("gdTest").onclick = async () => { const ok = await tgSend("✅ Test message - alerts from the Forex/Crypto page arrive here.\n" + gdStatusText(), true);
+    alert(ok ? "Sent ✓ - check Telegram." : "Not sent: check the token and chat id (send your bot a message first)."); };
+  $("gdFind").onclick = async () => {
+    const tok = $("gd_tok").value.trim(); if (!tok) return alert("Paste the bot token first.");
+    try { const j = await (await fetch(`https://api.telegram.org/bot${tok}/getUpdates?offset=-10`)).json();
+      if (!j.ok) return alert("Telegram: " + (j.description || "token not accepted"));
+      const m = (j.result || []).map(u => u.message).filter(Boolean).pop(); if (!m) return alert('Send your bot "hi" in Telegram first, then press Find again.');
+      GD.tg.token = tok; GD.tg.chat = String(m.chat.id); saveGD(); gdForm(); alert(`Found your chat (${m.chat.first_name || ""} ${m.chat.id}) ✓ - now press Send test.`);
+    } catch (e) { alert("Couldn't reach Telegram: " + e); }
+  };
+  $("gdCoach").onclick = () => { $("gdCoachOut").innerHTML = gdCoach(+$("gd_days").value).map(x => `<div class="gdf ${x.k}">${x.t}</div>`).join(""); };
+  $("gdSendCoach").onclick = async () => { const ok = await tgSend("📓 Coach\n\n" + gdCoach(+$("gd_days").value).map(x => "• " + x.t.replace(/<[^>]+>/g, "")).join("\n"), true); alert(ok ? "Sent ✓" : "Telegram isn't set up yet."); };
+  setInterval(() => { if (!$("t_gd").classList.contains("hide")) gdRender(); }, 10000);
+  loadCal().then(() => { if (!$("t_gd").classList.contains("hide")) gdRender(); }); setInterval(loadCal, 30 * 60e3);
+
+  // ================================================================ 🪜 GRID BOT (practice)
+  let GRID = null; try { GRID = JSON.parse(localStorage.getItem("dbGrid") || "null"); } catch (e) {}
+  const saveGrid = () => localStorage.setItem("dbGrid", JSON.stringify(GRID));
+  const GFEE = 0.001;
+  function gridLevels(lo, hi, n) { const out = []; for (let i = 0; i <= n; i++) out.push(lo + (hi - lo) * i / n); return out; }
+  function gridSrc(sym, md) { const m = MARKETS.forex.concat(MARKETS.crypto).find(x => x[0] === sym); return m && m[3] === "fut" ? "fut" : "spot"; }
+  function gridRead() {
+    const lo = +$("grLo").value, hi = +$("grHi").value, n = Math.round(+$("grN").value), per = +$("grPer").value, stop = +$("grStop").value;
+    if (!(lo > 0 && hi > lo && n >= 3 && n <= 60 && per >= 5)) { alert("Fill in: lowest buy < highest level, 3-60 levels, at least $5 per level."); return null; }
+    if (!(stop > 0 && stop < lo)) { alert("Set the hard stop below the lowest buy (e.g. 5% under it). The grid sells everything there."); return null; }
+    return { lo, hi, n, per, stop };
+  }
+  async function gridCandles(sym, tf, limit) {
+    const src = gridSrc(sym, mode), r = await fetch(`${src === "fut" ? "https://fapi.binance.com/fapi/v1/" : DATA}klines?symbol=${sym}&interval=${tf}&limit=${limit}`);
+    if (!r.ok) throw new Error("price feed " + r.status); return (await r.json()).map(x => ({ t: x[0], o: +x[1], h: +x[2], l: +x[3], c: +x[4] }));
+  }
+  $("grSuggest").onclick = async () => {
+    try { const k = await gridCandles($("sym").value, "1h", 168); const lo = Math.min(...k.map(x => x.l)), hi = Math.max(...k.map(x => x.h)), d = v => +v.toPrecision(6);
+      $("grLo").value = d(lo); $("grHi").value = d(hi); $("grStop").value = d(lo * 0.95); $("grState").textContent = `Range of the last 7 days on ${label($("sym").value)}; stop 5% below it.`; }
+    catch (e) { alert("Couldn't load prices: " + e.message); }
+  };
+  // backtest: each candle, buys at levels its low touched, sells bought levels one step up if its high touched (only from the next candle)
+  function gridSim(k, g) {
+    const L = gridLevels(g.lo, g.hi, g.n), held = new Array(g.n).fill(null); let real = 0, trips = 0, peak = 0, dd = 0, stopped = null;
+    for (let j = 0; j < k.length; j++) {
+      const c = k[j];
+      if (c.l <= g.stop) { for (let i = 0; i < g.n; i++) if (held[i]) { real += held[i].u * g.stop * (1 - GFEE) - g.per; held[i] = null; } stopped = c.t; break; }
+      for (let i = 0; i < g.n; i++) if (held[i] && held[i].j < j && c.h >= L[i + 1]) { real += held[i].u * L[i + 1] * (1 - GFEE) - g.per; held[i] = null; trips++; }
+      for (let i = 0; i < g.n; i++) if (!held[i] && c.l <= L[i] && (j === 0 ? c.o > L[i] : true) && L[i] < (j ? k[j - 1].c : c.o) + 1e-12) held[i] = { u: g.per * (1 - GFEE) / L[i], j };
+      const unr = held.reduce((s, x, i) => s + (x ? x.u * c.c - g.per : 0), 0), eq = real + unr; peak = Math.max(peak, eq); dd = Math.max(dd, peak - eq);
+    }
+    const last = k[k.length - 1].c, unr = held.reduce((s, x) => s + (x ? x.u * last - g.per : 0), 0);
+    return { real, unr, total: real + unr, trips, dd, stopped, capital: g.per * g.n, hold: (last / k[0].o - 1) * 100 };
+  }
+  $("grTest").onclick = async () => {
+    const g = gridRead(); if (!g) return;
+    $("grOut").innerHTML = `<div class="mut">testing on the last 1000 hourly candles…</div>`;
+    try {
+      const k = await gridCandles($("sym").value, "1h", 1000), r = gridSim(k, g);
+      $("grOut").innerHTML = `<div class="gdf ${r.total >= 0 ? "g" : "w"}">On the last ${k.length} hours of ${label($("sym").value)}: <b>${money(r.total)}</b> (${(100 * r.total / r.capital).toFixed(1)}% of the $${r.capital} it can use) ·
+        ${r.trips} completed buy→sell steps · realised ${money(r.real)}, still holding ${money(r.unr)} · worst dip ${money(-r.dd)}${r.stopped ? ` · <b class="dn">hit the hard stop on ${new Date(r.stopped).toLocaleDateString()}</b>` : ""} ·
+        just holding would have made ${r.hold >= 0 ? "+" : ""}${r.hold.toFixed(1)}%. <span class="mut">Past prices only; a long fall below your range is the grid's big risk.</span></div>`;
+    } catch (e) { $("grOut").innerHTML = `<div class="dn">${e.message}</div>`; }
+  };
+  $("grStart").onclick = () => {
+    if (GRID && GRID.on) return alert("A grid is already running on " + label(GRID.sym) + ". Stop it first.");
+    const g = gridRead(); if (!g) return;
+    const why = guardBlock($("sym").value, mode, false); if (why) return alert("Not now: " + why);
+    const L = gridLevels(g.lo, g.hi, g.n);
+    GRID = Object.assign(g, { on: true, sym: $("sym").value, md: mode, src: gridSrc($("sym").value, mode), levels: L.slice(0, -1).map((p, i) => ({ p, s: L[i + 1], f: false, u: 0 })),
+      realized: 0, trips: 0, startT: Date.now(), last: null });
+    saveGrid(); gridRender(); log(`🪜 grid started on ${label(GRID.sym)}: ${g.n} levels ${fmt(g.lo)}-${fmt(g.hi)}, $${g.per} each, hard stop ${fmt(g.stop)}`);
+  };
+  function gridBook(pl, reason) {          // a finished step goes into the practice account of that market type
+    const h = { t: Date.now(), exitT: Date.now(), sym: GRID.sym, tf: "grid", side: "buy", entry: 0, exit: 0, units: 0, pl, r: pl / GRID.per, strat: "🪜 Grid", reason };
+    if (GRID.md === mode) { acct.bal += pl; acct.hist.push(h); saveAcct(); renderAccount(); }
+    else { try { const a = JSON.parse(localStorage.getItem("dbTrade.acct." + GRID.md)); a.bal += pl; a.hist.push(h); localStorage.setItem("dbTrade.acct." + GRID.md, JSON.stringify(a)); } catch (e) {} }
+    guardOnClose(h, GRID.md);
+  }
+  function gridStop(why) {
+    if (!GRID || !GRID.on) return;
+    const px = GRID.last; let pl = 0;
+    if (px) GRID.levels.forEach(l => { if (l.f) { pl += l.u * px * (1 - GFEE) - GRID.per; l.f = false; } });
+    if (pl) gridBook(pl, "grid stopped: " + why);
+    GRID.realized += pl; GRID.on = false; saveGrid(); gridRender();
+    log(`🪜 grid stopped (${why}) · realised ${money(GRID.realized)}`);
+  }
+  $("grStopB").onclick = () => { if (GRID && GRID.on && confirm("Stop the grid and sell what it holds at the current price?")) gridStop("stopped by you"); };
+  async function gridTick() {
+    if (!GRID || !GRID.on) return;
+    let px = null;
+    try { if (GRID.sym === $("sym").value && GRID.md === mode && B) px = B.c[B.n - 1];
+      else { const r = await fetch(`${GRID.src === "fut" ? "https://fapi.binance.com/fapi/v1/" : DATA}ticker/price?symbol=${GRID.sym}`); px = +(await r.json()).price; } } catch (e) { return; }
+    if (!(px > 0)) return;
+    GRID.last = px;
+    if (px <= GRID.stop) { notify("🪜 Grid hard stop", `${label(GRID.sym)} fell to ${fmt(px)}: sold everything.`); if (GD.tg.on && GD.tg.guard) tgSend(`🪜 Grid hard stop on ${label(GRID.sym)} at ${fmt(px)}.`); gridStop("hard stop"); return; }
+    const blockedNow = guardBlock(GRID.sym, GRID.md, false);
+    for (const l of GRID.levels) {
+      if (l.f && px >= l.s) { const pl = l.u * l.s * (1 - GFEE) - GRID.per; l.f = false; GRID.realized += pl; GRID.trips++; gridBook(pl, "grid step sold"); }
+      else if (!l.f && px <= l.p && !blockedNow) { l.f = true; l.u = GRID.per * (1 - GFEE) / px; }
+    }
+    saveGrid(); gridRender();
+  }
+  function gridRender() {
+    if (!GRID) { $("grState").textContent = "Grid is off."; return; }
+    const held = GRID.levels.filter(l => l.f), unr = GRID.last ? held.reduce((s, l) => s + l.u * GRID.last - GRID.per, 0) : 0;
+    $("grState").innerHTML = `${GRID.on ? "<b class='up'>Grid ON</b>" : "Grid stopped"} on ${label(GRID.sym)} · price ${fmt(GRID.last)} · holding ${held.length}/${GRID.levels.length} levels ·
+      ${GRID.trips} steps sold · realised <b class="${GRID.realized >= 0 ? "up" : "dn"}">${money(GRID.realized)}</b> · open ${money(unr)} · hard stop ${fmt(GRID.stop)}`;
+    if (GRID.on && !$("grLo").value) { $("grLo").value = GRID.lo; $("grHi").value = GRID.hi; $("grN").value = GRID.n; $("grPer").value = GRID.per; $("grStop").value = GRID.stop; }
+  }
+  setInterval(gridTick, 10000); setTimeout(gridRender, 500);
   buildChart();
   setMode();
-  window.__trade = { fdScan, get ideas() { return ideas; }, get B() { return B; }, get acct() { return acct; }, get favs() { return favs; }, get drawings() { return drawings; }, chartClick, setTool, marketTab, testStrat, runBacktest, openTrade, managePositions, lastPrice, closedIdx, onNewBar, setAuto: a => { auto = a; } };
+  window.__trade = { GD, guardBlock, guardOnClose, proofCheck, gdCoach, gdPoll, gdClock, newsNear, loadCal, get CAL() { return CAL; }, set CAL(v) { CAL = v; }, gridSim, gridTick, get GRID() { return GRID; }, fdScan, get ideas() { return ideas; }, get B() { return B; }, get acct() { return acct; }, get favs() { return favs; }, get drawings() { return drawings; }, chartClick, setTool, marketTab, testStrat, runBacktest, openTrade, managePositions, lastPrice, closedIdx, onNewBar, setAuto: a => { auto = a; } };
 })();
