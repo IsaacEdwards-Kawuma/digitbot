@@ -1,7 +1,6 @@
 {
- "version": "2.3.0",
+ "version": "2.3.1",
  "code": 7,
  "apk": "app/DigitBot.apk",
- "notes": "📋 Paste button for the Telegram token (fixes 'clipboard denied')",
- "name": "2.3.1"
+ "notes": "📋 Paste button for the Telegram token (fixes 'clipboard denied')"
 }
