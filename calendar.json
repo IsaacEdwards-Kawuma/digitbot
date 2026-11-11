@@ -1,93 +1,5 @@
 [
 {
-"title": "Westpac Consumer Sentiment",
-"country": "AUD",
-"date": "2026-11-09T18:30:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": "-4.7%"
-},
-{
-"title": "Household Spending y/y",
-"country": "JPY",
-"date": "2026-11-09T18:30:00-05:00",
-"impact": "Low",
-"forecast": "-3.1%",
-"previous": "-3.1%"
-},
-{
-"title": "Bank Lending y/y",
-"country": "JPY",
-"date": "2026-11-09T18:50:00-05:00",
-"impact": "Low",
-"forecast": "5.4%",
-"previous": "5.3%"
-},
-{
-"title": "BOJ Summary of Opinions",
-"country": "JPY",
-"date": "2026-11-09T18:50:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "Current Account",
-"country": "JPY",
-"date": "2026-11-09T18:50:00-05:00",
-"impact": "Low",
-"forecast": "2.81T",
-"previous": "2.98T"
-},
-{
-"title": "BRC Retail Sales Monitor y/y",
-"country": "GBP",
-"date": "2026-11-09T19:01:00-05:00",
-"impact": "Low",
-"forecast": "1.2%",
-"previous": "1.0%"
-},
-{
-"title": "NAB Business Confidence",
-"country": "AUD",
-"date": "2026-11-09T19:30:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": "-13"
-},
-{
-"title": "USD-Denominated Trade Balance",
-"country": "CNY",
-"date": "2026-11-09T21:32:00-05:00",
-"impact": "Low",
-"forecast": "126.5B",
-"previous": "133.5B"
-},
-{
-"title": "Trade Balance",
-"country": "CNY",
-"date": "2026-11-09T21:33:00-05:00",
-"impact": "Low",
-"forecast": "855B",
-"previous": "906B"
-},
-{
-"title": "30-y Bond Auction",
-"country": "JPY",
-"date": "2026-11-09T22:35:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": "4.11|3.9"
-},
-{
-"title": "Economy Watchers Sentiment",
-"country": "JPY",
-"date": "2026-11-10T00:00:00-05:00",
-"impact": "Low",
-"forecast": "47.1",
-"previous": "47.0"
-},
-{
 "title": "MPC Member Breeden Speaks",
 "country": "GBP",
 "date": "2026-11-10T03:30:00-05:00",
@@ -508,7 +420,7 @@
 "country": "USD",
 "date": "2026-11-12T12:00:00-05:00",
 "impact": "Low",
-"forecast": "",
+"forecast": "-0.6M",
 "previous": "-0.9M"
 },
 {
@@ -548,7 +460,7 @@
 "country": "USD",
 "date": "2026-11-12T14:00:00-05:00",
 "impact": "Low",
-"forecast": "-286.3B",
+"forecast": "-298.6B",
 "previous": "-26.9B"
 },
 {
@@ -680,11 +592,19 @@
 "previous": "-0.1%"
 },
 {
+"title": "FOMC Member Logan Speaks",
+"country": "USD",
+"date": "2026-11-13T09:40:00-05:00",
+"impact": "Low",
+"forecast": "",
+"previous": ""
+},
+{
 "title": "Natural Gas Storage",
 "country": "USD",
 "date": "2026-11-13T10:30:00-05:00",
 "impact": "Low",
-"forecast": "",
+"forecast": "65B",
 "previous": "77B"
 },
 {
