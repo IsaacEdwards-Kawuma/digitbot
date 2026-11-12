@@ -1,53 +1,5 @@
 [
 {
-"title": "FOMC Member Bowman Speaks",
-"country": "USD",
-"date": "2026-11-10T18:30:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "FOMC Member Paulson Speaks",
-"country": "USD",
-"date": "2026-11-10T18:30:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "M2 Money Stock y/y",
-"country": "JPY",
-"date": "2026-11-10T18:50:00-05:00",
-"impact": "Low",
-"forecast": "2.1%",
-"previous": "2.0%"
-},
-{
-"title": "Prelim Machine Tool Orders y/y",
-"country": "JPY",
-"date": "2026-11-11T01:00:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": "60.4%"
-},
-{
-"title": "German Final CPI m/m",
-"country": "EUR",
-"date": "2026-11-11T02:00:00-05:00",
-"impact": "Low",
-"forecast": "-0.2%",
-"previous": "-0.2%"
-},
-{
-"title": "French Bank Holiday",
-"country": "EUR",
-"date": "2026-11-11T02:01:00-05:00",
-"impact": "Holiday",
-"forecast": "",
-"previous": ""
-},
-{
 "title": "German Buba President Nagel Speaks",
 "country": "EUR",
 "date": "2026-11-11T03:15:00-05:00",
