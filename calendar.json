@@ -1,29 +1,5 @@
 [
 {
-"title": "PPI y/y",
-"country": "JPY",
-"date": "2026-11-11T18:50:00-05:00",
-"impact": "Low",
-"forecast": "6.5%",
-"previous": "6.8%"
-},
-{
-"title": "MI Inflation Expectations",
-"country": "AUD",
-"date": "2026-11-11T19:00:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": "5.3%"
-},
-{
-"title": "RICS House Price Balance",
-"country": "GBP",
-"date": "2026-11-11T19:01:00-05:00",
-"impact": "Low",
-"forecast": "-33%",
-"previous": "-32%"
-},
-{
 "title": "GDP m/m",
 "country": "GBP",
 "date": "2026-11-12T02:00:00-05:00",
