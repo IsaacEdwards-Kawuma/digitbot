@@ -1,77 +1,5 @@
 [
 {
-"title": "FOMC Member Hammack Speaks",
-"country": "USD",
-"date": "2026-11-16T14:15:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "RBNZ Financial Stability Report",
-"country": "NZD",
-"date": "2026-11-16T15:00:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "FPI m/m",
-"country": "NZD",
-"date": "2026-11-16T16:45:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": "0.0%"
-},
-{
-"title": "RBA Gov Bullock Speaks",
-"country": "AUD",
-"date": "2026-11-16T17:50:00-05:00",
-"impact": "High",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "FOMC Member Barkin Speaks",
-"country": "USD",
-"date": "2026-11-16T18:10:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "FOMC Member Goolsbee Speaks",
-"country": "USD",
-"date": "2026-11-16T18:30:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "RBNZ Gov Breman Speaks",
-"country": "NZD",
-"date": "2026-11-16T19:00:00-05:00",
-"impact": "Medium",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "Monetary Policy Meeting Minutes",
-"country": "AUD",
-"date": "2026-11-16T19:30:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "Inflation Expectations q/q",
-"country": "NZD",
-"date": "2026-11-16T21:00:00-05:00",
-"impact": "High",
-"forecast": "",
-"previous": "2.34%"
-},
-{
 "title": "Tertiary Industry Activity m/m",
 "country": "JPY",
 "date": "2026-11-16T23:30:00-05:00",
@@ -274,7 +202,7 @@
 {
 "title": "MI Leading Index m/m",
 "country": "AUD",
-"date": "2026-11-17T18:30:00-05:00",
+"date": "2026-11-17T18:39:00-05:00",
 "impact": "Low",
 "forecast": "",
 "previous": "-0.1%"
@@ -436,7 +364,7 @@
 "country": "USD",
 "date": "2026-11-18T10:00:00-05:00",
 "impact": "Low",
-"forecast": "-1.8%",
+"forecast": "-2.0%",
 "previous": "-7.3%"
 },
 {
@@ -444,7 +372,7 @@
 "country": "USD",
 "date": "2026-11-18T10:30:00-05:00",
 "impact": "Low",
-"forecast": "-0.3M",
+"forecast": "0.4M",
 "previous": "4.7M"
 },
 {
@@ -580,7 +508,7 @@
 "country": "CAD",
 "date": "2026-11-19T08:30:00-05:00",
 "impact": "Low",
-"forecast": "1.2%",
+"forecast": "0.4%",
 "previous": "2.0%"
 },
 {
@@ -588,7 +516,7 @@
 "country": "CAD",
 "date": "2026-11-19T08:30:00-05:00",
 "impact": "Low",
-"forecast": "2.0%",
+"forecast": "0.9%",
 "previous": "4.8%"
 },
 {
@@ -604,7 +532,7 @@
 "country": "USD",
 "date": "2026-11-19T08:30:00-05:00",
 "impact": "Medium",
-"forecast": "19.2",
+"forecast": "20.6",
 "previous": "20.9"
 },
 {
@@ -612,7 +540,7 @@
 "country": "USD",
 "date": "2026-11-19T08:30:00-05:00",
 "impact": "Medium",
-"forecast": "199K",
+"forecast": "198K",
 "previous": "200K"
 },
 {
@@ -652,7 +580,7 @@
 "country": "USD",
 "date": "2026-11-19T10:30:00-05:00",
 "impact": "Low",
-"forecast": "",
+"forecast": "25B",
 "previous": "61B"
 },
 {
@@ -804,7 +732,7 @@
 "country": "USD",
 "date": "2026-11-20T10:00:00-05:00",
 "impact": "Medium",
-"forecast": "52.1",
+"forecast": "51.7",
 "previous": "51.0"
 },
 {
