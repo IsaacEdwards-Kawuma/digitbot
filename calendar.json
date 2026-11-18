@@ -1,125 +1,5 @@
 [
 {
-"title": "FOMC Member Musalem Speaks",
-"country": "USD",
-"date": "2026-11-17T07:30:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "Housing Starts",
-"country": "CAD",
-"date": "2026-11-17T08:15:00-05:00",
-"impact": "Low",
-"forecast": "241K",
-"previous": "249K"
-},
-{
-"title": "ADP Weekly Employment Change",
-"country": "USD",
-"date": "2026-11-17T08:15:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": "19.8K"
-},
-{
-"title": "Foreign Securities Purchases",
-"country": "CAD",
-"date": "2026-11-17T08:30:00-05:00",
-"impact": "Low",
-"forecast": "14.85B",
-"previous": "-17.31B"
-},
-{
-"title": "Core Retail Sales m/m",
-"country": "USD",
-"date": "2026-11-17T08:30:00-05:00",
-"impact": "High",
-"forecast": "0.4%",
-"previous": "0.9%"
-},
-{
-"title": "Retail Sales m/m",
-"country": "USD",
-"date": "2026-11-17T08:30:00-05:00",
-"impact": "High",
-"forecast": "0.1%",
-"previous": "0.8%"
-},
-{
-"title": "Import Prices m/m",
-"country": "USD",
-"date": "2026-11-17T08:30:00-05:00",
-"impact": "Low",
-"forecast": "0.7%",
-"previous": "1.1%"
-},
-{
-"title": "FOMC Member Waller Speaks",
-"country": "USD",
-"date": "2026-11-17T09:10:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "Capacity Utilization Rate",
-"country": "USD",
-"date": "2026-11-17T09:15:00-05:00",
-"impact": "Low",
-"forecast": "76.8%",
-"previous": "76.9%"
-},
-{
-"title": "Industrial Production m/m",
-"country": "USD",
-"date": "2026-11-17T09:15:00-05:00",
-"impact": "Low",
-"forecast": "0.0%",
-"previous": "0.7%"
-},
-{
-"title": "GDT Price Index",
-"country": "NZD",
-"date": "2026-11-17T09:29:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": "3.0%"
-},
-{
-"title": "FOMC Member Hammack Speaks",
-"country": "USD",
-"date": "2026-11-17T09:30:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "Business Inventories m/m",
-"country": "USD",
-"date": "2026-11-17T10:00:00-05:00",
-"impact": "Low",
-"forecast": "0.5%",
-"previous": "0.4%"
-},
-{
-"title": "NAHB Housing Market Index",
-"country": "USD",
-"date": "2026-11-17T10:00:00-05:00",
-"impact": "Low",
-"forecast": "29",
-"previous": "29"
-},
-{
-"title": "FOMC Member Williams Speaks",
-"country": "USD",
-"date": "2026-11-17T14:25:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
 "title": "API Weekly Statistical Bulletin",
 "country": "USD",
 "date": "2026-11-17T16:30:00-05:00",
@@ -408,14 +288,6 @@
 "previous": "4.7%"
 },
 {
-"title": "Foreign Direct Investment ytd/y",
-"country": "CNY",
-"date": "2026-11-19T02:02:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": "-4.3%"
-},
-{
 "title": "Current Account",
 "country": "EUR",
 "date": "2026-11-19T04:00:00-05:00",
@@ -622,6 +494,14 @@
 "impact": "Low",
 "forecast": "18.0B",
 "previous": "24.5B"
+},
+{
+"title": "Foreign Direct Investment ytd/y",
+"country": "CNY",
+"date": "2026-11-20T02:02:00-05:00",
+"impact": "Low",
+"forecast": "",
+"previous": "-4.3%"
 },
 {
 "title": "ECB President Lagarde Speaks",
