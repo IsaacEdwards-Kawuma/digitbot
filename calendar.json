@@ -1,53 +1,5 @@
 [
 {
-"title": "API Weekly Statistical Bulletin",
-"country": "USD",
-"date": "2026-11-17T16:30:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "PPI Input q/q",
-"country": "NZD",
-"date": "2026-11-17T16:45:00-05:00",
-"impact": "Low",
-"forecast": "1.5%",
-"previous": "2.9%"
-},
-{
-"title": "PPI Output q/q",
-"country": "NZD",
-"date": "2026-11-17T16:45:00-05:00",
-"impact": "Low",
-"forecast": "1.1%",
-"previous": "1.6%"
-},
-{
-"title": "MI Leading Index m/m",
-"country": "AUD",
-"date": "2026-11-17T18:39:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": "-0.1%"
-},
-{
-"title": "Trade Balance",
-"country": "JPY",
-"date": "2026-11-17T18:50:00-05:00",
-"impact": "Low",
-"forecast": "-0.90T",
-"previous": "-0.70T"
-},
-{
-"title": "Wage Price Index q/q",
-"country": "AUD",
-"date": "2026-11-17T19:30:00-05:00",
-"impact": "Medium",
-"forecast": "1.0%",
-"previous": "0.8%"
-},
-{
 "title": "German Buba President Nagel Speaks",
 "country": "EUR",
 "date": "2026-11-17T21:45:00-05:00",
