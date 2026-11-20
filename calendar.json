@@ -1,109 +1,5 @@
 [
 {
-"title": "MPC Member Dhingra Speaks",
-"country": "GBP",
-"date": "2026-11-19T07:15:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "IPPI m/m",
-"country": "CAD",
-"date": "2026-11-19T08:30:00-05:00",
-"impact": "Low",
-"forecast": "0.4%",
-"previous": "2.0%"
-},
-{
-"title": "RMPI m/m",
-"country": "CAD",
-"date": "2026-11-19T08:30:00-05:00",
-"impact": "Low",
-"forecast": "0.9%",
-"previous": "4.8%"
-},
-{
-"title": "ECB President Lagarde Speaks",
-"country": "EUR",
-"date": "2026-11-19T08:30:00-05:00",
-"impact": "Medium",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "Philly Fed Manufacturing Index",
-"country": "USD",
-"date": "2026-11-19T08:30:00-05:00",
-"impact": "Medium",
-"forecast": "20.6",
-"previous": "20.9"
-},
-{
-"title": "Unemployment Claims",
-"country": "USD",
-"date": "2026-11-19T08:30:00-05:00",
-"impact": "Medium",
-"forecast": "198K",
-"previous": "200K"
-},
-{
-"title": "FOMC Member Hammack Speaks",
-"country": "USD",
-"date": "2026-11-19T08:50:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "FOMC Member Jefferson Speaks",
-"country": "USD",
-"date": "2026-11-19T09:25:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "CB Leading Index m/m",
-"country": "USD",
-"date": "2026-11-19T10:00:00-05:00",
-"impact": "Low",
-"forecast": "0.0%",
-"previous": "0.0%"
-},
-{
-"title": "Natural Gas Storage",
-"country": "USD",
-"date": "2026-11-19T10:30:00-05:00",
-"impact": "Low",
-"forecast": "25B",
-"previous": "61B"
-},
-{
-"title": "Mortgage Delinquencies",
-"country": "USD",
-"date": "2026-11-19T10:46:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": "4.37%"
-},
-{
-"title": "FOMC Member Goolsbee Speaks",
-"country": "USD",
-"date": "2026-11-19T12:30:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "FOMC Member Barr Speaks",
-"country": "USD",
-"date": "2026-11-19T14:15:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
 "title": "FOMC Member Barkin Speaks",
 "country": "USD",
 "date": "2026-11-19T16:00:00-05:00",
@@ -246,6 +142,14 @@
 "impact": "Medium",
 "forecast": "",
 "previous": "4.3%"
+},
+{
+"title": "President Trump Speaks",
+"country": "USD",
+"date": "2026-11-20T12:00:00-05:00",
+"impact": "Medium",
+"forecast": "",
+"previous": ""
 },
 {
 "title": "FOMC Member Cook Speaks",
