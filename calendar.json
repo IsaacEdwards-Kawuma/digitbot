@@ -1,30 +1,6 @@
 [
 {
 "title": "Flash Manufacturing PMI",
-"country": "USD",
-"date": "2026-11-23T09:45:00-05:00",
-"impact": "Medium",
-"forecast": "54.5",
-"previous": "56.0"
-},
-{
-"title": "Flash Services PMI",
-"country": "USD",
-"date": "2026-11-23T09:45:00-05:00",
-"impact": "Medium",
-"forecast": "55.6",
-"previous": "57.9"
-},
-{
-"title": "FOMC Member Williams Speaks",
-"country": "USD",
-"date": "2026-11-23T16:00:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "Flash Manufacturing PMI",
 "country": "JPY",
 "date": "2026-11-23T19:30:00-05:00",
 "impact": "Low",
@@ -66,7 +42,7 @@
 {
 "title": "CB Leading Index m/m",
 "country": "CNY",
-"date": "2026-11-24T09:00:00-05:00",
+"date": "2026-11-24T08:51:00-05:00",
 "impact": "Low",
 "forecast": "",
 "previous": "-0.1%"
@@ -198,6 +174,14 @@
 "impact": "Low",
 "forecast": "",
 "previous": "3.37|1.1"
+},
+{
+"title": "FOMC Member Bowman Speaks",
+"country": "USD",
+"date": "2026-11-25T07:25:00-05:00",
+"impact": "Low",
+"forecast": "",
+"previous": ""
 },
 {
 "title": "Core PCE Price Index m/m",
@@ -437,7 +421,7 @@
 "date": "2026-11-27T05:33:00-05:00",
 "impact": "Low",
 "forecast": "",
-"previous": ""
+"previous": "4.49|1.6"
 },
 {
 "title": "German Buba President Nagel Speaks",
