@@ -1,93 +1,5 @@
 [
 {
-"title": "German ifo Business Climate",
-"country": "EUR",
-"date": "2026-11-24T04:00:00-05:00",
-"impact": "Low",
-"forecast": "90.5",
-"previous": "90.2"
-},
-{
-"title": "CBI Realized Sales",
-"country": "GBP",
-"date": "2026-11-24T06:00:00-05:00",
-"impact": "Low",
-"forecast": "-27",
-"previous": "-10"
-},
-{
-"title": "MPC Member Greene Speaks",
-"country": "GBP",
-"date": "2026-11-24T07:30:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "ADP Weekly Employment Change",
-"country": "USD",
-"date": "2026-11-24T08:15:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": "23.8K"
-},
-{
-"title": "CB Leading Index m/m",
-"country": "CNY",
-"date": "2026-11-24T08:51:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": "-0.1%"
-},
-{
-"title": "Belgian NBB Business Climate",
-"country": "EUR",
-"date": "2026-11-24T09:00:00-05:00",
-"impact": "Low",
-"forecast": "-9.4",
-"previous": "-9.8"
-},
-{
-"title": "HPI m/m",
-"country": "USD",
-"date": "2026-11-24T09:00:00-05:00",
-"impact": "Low",
-"forecast": "0.2%",
-"previous": "0.3%"
-},
-{
-"title": "S&P/CS Composite-20 HPI y/y",
-"country": "USD",
-"date": "2026-11-24T09:00:00-05:00",
-"impact": "Low",
-"forecast": "2.7%",
-"previous": "2.7%"
-},
-{
-"title": "CB Consumer Confidence",
-"country": "USD",
-"date": "2026-11-24T10:00:00-05:00",
-"impact": "Medium",
-"forecast": "92.4",
-"previous": "91.7"
-},
-{
-"title": "Richmond Manufacturing Index",
-"country": "USD",
-"date": "2026-11-24T10:00:00-05:00",
-"impact": "Low",
-"forecast": "-2",
-"previous": "-2"
-},
-{
-"title": "BOC Gov Macklem Speaks",
-"country": "CAD",
-"date": "2026-11-24T12:25:00-05:00",
-"impact": "Medium",
-"forecast": "",
-"previous": ""
-},
-{
 "title": "API Weekly Statistical Bulletin",
 "country": "USD",
 "date": "2026-11-24T16:30:00-05:00",
@@ -162,7 +74,7 @@
 {
 "title": "German 10-y Bond Auction",
 "country": "EUR",
-"date": "2026-11-25T05:42:00-05:00",
+"date": "2026-11-25T05:32:00-05:00",
 "impact": "Low",
 "forecast": "",
 "previous": "3.37|1.1"
@@ -238,6 +150,14 @@
 "impact": "Low",
 "forecast": "201K",
 "previous": "203K"
+},
+{
+"title": "Monetary Policy Report Hearings",
+"country": "GBP",
+"date": "2026-11-25T09:15:00-05:00",
+"impact": "Medium",
+"forecast": "",
+"previous": ""
 },
 {
 "title": "New Home Sales",
