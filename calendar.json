@@ -1,61 +1,5 @@
 [
 {
-"title": "German GfK Consumer Climate",
-"country": "EUR",
-"date": "2026-11-26T02:00:00-05:00",
-"impact": "Low",
-"forecast": "-29.4",
-"previous": "-30.8"
-},
-{
-"title": "M3 Money Supply y/y",
-"country": "EUR",
-"date": "2026-11-26T04:00:00-05:00",
-"impact": "Low",
-"forecast": "3.5%",
-"previous": "3.5%"
-},
-{
-"title": "Private Loans y/y",
-"country": "EUR",
-"date": "2026-11-26T04:00:00-05:00",
-"impact": "Low",
-"forecast": "3.2%",
-"previous": "3.1%"
-},
-{
-"title": "Euro Summit",
-"country": "EUR",
-"date": "2026-11-26T04:15:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "BOE Financial Stability Report",
-"country": "GBP",
-"date": "2026-11-26T05:30:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "FPC Meeting Minutes",
-"country": "GBP",
-"date": "2026-11-26T05:30:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "FPC Statement",
-"country": "GBP",
-"date": "2026-11-26T05:30:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
 "title": "ECB Monetary Policy Meeting Accounts",
 "country": "EUR",
 "date": "2026-11-26T07:30:00-05:00",
@@ -130,7 +74,7 @@
 {
 "title": "Italian 10-y Bond Auction",
 "country": "EUR",
-"date": "2026-11-27T05:33:00-05:00",
+"date": "2026-11-27T05:05:00-05:00",
 "impact": "Low",
 "forecast": "",
 "previous": "4.49|1.6"
