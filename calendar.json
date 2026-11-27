@@ -1,21 +1,5 @@
 [
 {
-"title": "ECB Monetary Policy Meeting Accounts",
-"country": "EUR",
-"date": "2026-11-26T07:30:00-05:00",
-"impact": "Low",
-"forecast": "",
-"previous": ""
-},
-{
-"title": "Bank Holiday",
-"country": "USD",
-"date": "2026-11-26T08:00:00-05:00",
-"impact": "Holiday",
-"forecast": "",
-"previous": ""
-},
-{
 "title": "Tokyo Core CPI y/y",
 "country": "JPY",
 "date": "2026-11-26T18:30:00-05:00",
